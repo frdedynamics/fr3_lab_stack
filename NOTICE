@@ -1,0 +1,19 @@
+fr3_lab_stack
+Copyright 2026 frdedynamics
+Main contributor: ehsann90
+
+rviz/fr3_research.rviz is derived from the locally used
+franka_fr3_moveit_config/rviz/moveit.rviz in frdedynamics/franka_ros2.
+Franka checkout HEAD: 1369a2cb200d0f7b3da11c7728c7ca2e6975ca00
+The source RViz configuration contained pre-existing local edits.
+Original project notice:
+  franka_ros2
+  Copyright 2023 Franka Robotics GmbH
+  Licensed under the Apache License, Version 2.0.
+
+Project changes: name and bind the two existing Image displays to the
+wrist/external RGB topics, update their property-tree entries, and reset the
+obsolete Qt dock layout so the renamed image docks can be arranged in RViz.
+All non-Image displays and MoveIt visualization settings are preserved.
+
+Source RViz SHA-256: 395a078b7c0c8fdbbd9e004d5ecc8393c3dc669ccfb64612c92e9cbbac746172

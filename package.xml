@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>fr3_lab_stack</name>
+  <version>0.1.0</version>
+  <description>Lab-owned FR3 research camera bringup and MoveIt visualization.</description>
+  <maintainer email="ehsan.kh69@gmail.com">ehsann90</maintainer>
+  <author email="ehsan.kh69@gmail.com">ehsann90</author>
+  <license>Apache-2.0</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>realsense2_camera</exec_depend>
+  <exec_depend>franka_fr3_moveit_config</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>rviz_default_plugins</exec_depend>
+  <exec_depend>moveit_ros_visualization</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <test_depend>ament_cmake_pytest</test_depend>
+  <test_depend>python3-yaml</test_depend>
+  <export><build_type>ament_cmake</build_type></export>
+</package>
