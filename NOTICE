@@ -2,7 +2,7 @@ fr3_lab_stack
 Copyright 2026 frdedynamics
 Main contributor: ehsann90
 
-rviz/fr3_research.rviz is derived from the locally used
+rviz/fr3_lab_stack.rviz is derived from the locally used
 franka_fr3_moveit_config/rviz/moveit.rviz in frdedynamics/franka_ros2.
 Franka checkout HEAD: 1369a2cb200d0f7b3da11c7728c7ca2e6975ca00
 The source RViz configuration contained pre-existing local edits.

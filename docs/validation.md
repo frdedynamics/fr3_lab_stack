@@ -1,196 +1,110 @@
 # Validation record — 2026-09-08
 
-## Scope and environment
+## Current status
 
-Repository/package: `fr3_lab_stack` (operator explicitly selected this name over
-the inconsistent `fr3_research_bringup` name in the original brief).
-Local repository branch `main`, contributor identity
-`ehsann90 <ehsan.kh69@gmail.com>` taken from the existing lab repository.
-Intended organization: `frdedynamics`. No hosted repository, remote, push, or
-GitHub access grant has been made; organization ownership is not yet established.
+**Overall: PARTIAL / INCOMPLETE.**
 
-ROS 2 Jazzy; installed RealSense ROS 4.57.7 and librealsense 2.57.7 confirmed
-by package manager and camera startup logs. USB enumeration found:
+Software validation passed. Dual-camera operation was stable during the latest **525.137 s** integrated observation. The required **15 uninterrupted minutes** of full physical acceptance have not yet been completed.
 
-| Role | Serial | Firmware | USB |
+## Latest integrated observation
+
+| Item | Result |
+| --- | --- |
+| Start | `2026-09-08T13:15:39.145169+02:00` |
+| End | `2026-09-08T13:24:24.281703+02:00` |
+| Duration | **525.137 s — 8 min 45.137 s** |
+| Planned duration | 900 s |
+| Outcome | Interrupted by MoveIt Servo singularity protection |
+
+### Camera performance
+
+| Metric | Wrist | External |
+| --- | ---: | ---: |
+| Serial | `342222073510` | `244222076317` |
+| CameraInfo samples | 15,743 | 15,743 |
+| Mean observed rate | 29.978531 Hz | 29.978359 Hz |
+| Median 5 s rate | 29.979239 Hz | 29.979359 Hz |
+| Maximum arrival gap | 42.536 ms | 42.295 ms |
+| Stall / restart / disconnect | None | None |
+
+Both RViz RGB panes remained visible and updating throughout the monitored interval.
+
+### Manual control checks
+
+The operator completed the requested:
+
+- ±X / ±Y / ±Z translation checks;
+- ±Rx / ±Ry / ±Rz rotation checks;
+- gripper open/close/repeated-toggle checks.
+
+No `communication_constraints_violation`, joint/cartesian reflex caused by contact, controller timing failure, controller deactivation, or camera-node restart was captured during this observation.
+
+## Singularity event and recovery interpretation
+
+MoveIt Servo entered `HALT_FOR_SINGULARITY` when the arm approached a singular configuration.
+
+During the monitored run, Cartesian teleoperation did not successfully move the arm out of the singular region and the 15-minute qualification was therefore not completed.
+
+After the monitored interval, the operator used MoveIt planning to move the arm to a nonsingular configuration. SpaceMouse Cartesian teleoperation then resumed normally.
+
+This supports interpretation of the event as **expected singularity protection**, not a persistent Servo, controller, Franka communication, or SpaceMouse failure. The recovery was an operator observation after the monitored interval and was not captured by the validation observer.
+
+A future acceptance run should remain in a comfortable workspace. If a singularity halt occurs, use the documented MoveIt recovery procedure and restart the uninterrupted 15-minute observation window.
+
+## USB topology
+
+The latest candidate stable topology is:
+
+| Role | RealSense serial | USB path | Controller |
 | --- | --- | --- | --- |
-| Wrist | 342222073510 | 5.13.0.55 | 3.2 |
-| External | 244222076317 | 5.17.3.10 | 3.2 |
+| Wrist | `342222073510` | `6-1` | `0000:78:00.0` |
+| External | `244222076317` | `6-2` | `0000:78:00.0` |
 
-Firmware, drivers, QoS, synchronization, and timestamp settings were not changed.
+Both devices remained continuously enumerated during the 525.137 s observation. No USB/xHCI/UVC/RealSense kernel event occurred inside the exact observation window.
 
-## Software results
+### Historical USB issue
 
-- Package-select build passed. Initial plain build selected Miniconda Python
-  and failed with missing `catkin_pkg`, plus a missing `pytest` warning.
-  Reconfiguration with `-DPython3_EXECUTABLE=/usr/bin/python3` resolved this;
-  subsequent `PYTHONNOUSERSITE=1 colcon build --packages-select fr3_lab_stack`
-  passed. A redundant `PYTHON_EXECUTABLE` option in the recovery command produced
-  an unused-variable CMake warning; it is not required.
-- Four pytest cases passed: actual upstream launch evaluation with default,
-  explicit false, and true depth arguments; RViz image display validation.
-  CTest reports five entries when counting its aggregate test as well.
-- Initial tests hit sandbox restrictions writing `~/.ros/log`; test logs now
-  live under the package build directory. A test helper initially failed to
-  normalize a LaunchConfiguration; corrected before the passing test run.
-- `--show-args` succeeded. It lists included upstream arguments as well as the
-  project depth argument; upstream printed defaults do not describe the fixed
-  values passed by each include. The evaluated launch tests check actual values.
-- Semantic comparison against the current Franka RViz file confirmed all
-  non-Image displays and all other Visualization Manager settings are identical.
-- Only the new package was built; this was not a clean rebuild of all dependencies.
+An earlier integrated run lost the wrist camera when its previous `10-1` xHCI path failed. After moving the wrist camera to the current `6-1` port, no USB/xHCI event or camera interruption occurred during the subsequent 525-second integrated observation.
 
-## Initial camera run
+This supports the current topology as the preferred configuration, but does not establish a definitive hardware root cause and does not replace the pending 15-minute qualification.
 
-The operator stopped the two pre-existing camera launches. The new single
-`ros2 launch fr3_lab_stack dual_realsense.launch.py` command started both nodes.
-Both logged the correct **Device Serial No**, USB 3.2, sync off, and active
-Color profile RGB8 / 1280×720 / 30 FPS. Enumeration logs can list both devices
-before selection; use the selected Device Serial No line to establish identity.
+## Software validation
 
-Both nodes' queried parameters matched:
+- package-select build passed;
+- dual-camera launch evaluation passed;
+- fixed wrist/external serial binding passed;
+- RGB8 `1280x720x30` configuration passed;
+- depth-disabled default passed;
+- optional depth produced images from both devices;
+- RViz configuration includes both RGB image displays while preserving the MoveIt visualization;
+- project checks/tests passed.
 
-```text
-serial_no: _342222073510 (wrist), _244222076317 (external)
-rgb_camera.color_profile: 1280x720x30
-rgb_camera.color_format: RGB8
-enable_depth: false
-enable_gyro: false
-enable_accel: false
-```
+The initial build selected Miniconda Python and failed because required ROS Python packages were unavailable there. Rebuilding with `/usr/bin/python3` resolved the issue; no additional Python packages were installed.
 
-No `/camera/{wrist_camera,external_camera}/depth/...` topics were advertised in
-this default run, and only the RGB sensor was started. The
-`extrinsics/depth_to_color` topic remained advertised; it is calibration metadata,
-not a depth image stream. Initialization of depth profiles and IMU sample-rate
-parameters in the driver log does not mean those streams are enabled.
+## Git provenance for latest monitored run
 
-Simultaneous 15-second CameraInfo rate probes:
+| Repository / Git root | HEAD |
+| --- | --- |
+| `~/franka_ros2_ws/src/fr3_lab_stack` | `7795d7ad6aedc33465fc75edba2624a45d40b045` |
+| `~/franka_ros2_ws/src/igd_fr3_control` | `438e4ae3145944042033395940848bf107cb9965` |
+| Franka root `~/franka_ros2_ws/src` | `1369a2cb200d0f7b3da11c7728c7ca2e6975ca00` |
 
-- Wrist: final average **29.978 Hz**, 421-message window; displayed averages
-  29.971–29.980 Hz.
-- External: **no CameraInfo samples**, no rate available. Repeated librealsense
-  and ROS warnings: `Frames didn't arrived within 5 seconds` / `Frames Timeout`.
-  A clean stop/restart reproduced this. USB reconnection was requested.
-- The no-data CLI probe emitted an invalid-context/wait-set error when timeout
-  terminated it; no driver process crash occurred. Intentional camera shutdowns
-  produced the normal launch SIGINT warning and clean process exits.
+No dependency modification was made by the validation observer.
 
-Initial launch logs:
-`~/.ros/log/2026-09-08-11-49-13-175075-hvl-robotics2404-59573/launch.log`
-and `~/.ros/log/2026-09-08-11-51-01-104826-hvl-robotics2404-60397/launch.log`.
+## Raw evidence
 
-## Integrated acceptance status
-
-USB reconnection cleared the initial external RGB timeout. A subsequent default
-run opened both cameras without warnings. Four simultaneous 15-second CLI probes
-measured final CameraInfo averages **29.982 Hz wrist / 29.981 Hz external**;
-image CLI averages were **26.768 Hz wrist / 17.561 Hz external**. Both one-shot
-image subscriptions confirmed `rgb8` and reported one lost message on startup.
-The lower full-image CLI rates remain a receiver-performance observation to
-investigate with the lightweight serialized-message checker; CameraInfo rates
-alone are not presented as proof of full RGB delivery.
-
-The opt-in launch was tested on hardware: both `enable_depth` parameters became
-true and both depth topics delivered stamped images with the corresponding
-`*_depth_optical_frame`. Default depth profile was Z16 / 848×480 / 30 FPS.
-The external RGB timeout returned after this restart despite working depth.
-Both camera processes were stopped cleanly and a second USB reconnection was
-requested before restoring the default RGB-only launch. No reset workaround,
-firmware change, package upgrade, or dependency edit was introduced.
-
-After a second external USB reconnection, the RGB-only launch was restored and
-both depth parameters were verified false. The lightweight RGB checker measured
-**28.993 Hz wrist / 28.936 Hz external** over 20 seconds, with 550/548 received
-1280×720 `rgb8` images and a maximum arrival gap of 0.368 seconds for each.
-
-The operator loaded the project config through File → Open Config in the existing
-MoveIt RViz process and confirmed: **both images visible; starting the 15-minute
-test**. A process check found one RViz and one Servo process. ROS graph warnings
-about duplicate `rviz2` and `servo_node` names reflected multiple nodes within
-those processes, not two launches of either executable.
-
-The physical run was interrupted after a few minutes and **did not pass the
-15-minute acceptance test**:
-
-- During the first 45 seconds of monitoring, both CameraInfo streams continued
-  with maximum arrival gaps below 0.035 seconds while all seven arm joint
-  positions changed. Servo logged deceleration when approaching/leaving a
-  singularity. This confirms concurrent telemetry during motion, not subjective
-  smoothness of every SpaceMouse axis.
-- Between the 45- and 90-second monitor reports, libfranka reported
-  `Move command aborted: motion aborted by reflex! ["cartesian_reflex"]`.
-  Controller manager deactivated the hardware and arm/state controllers because
-  that exception surfaced in the read cycle. The operator explicitly confirmed
-  the robot contacted an object while attempting a grasp, triggering the stop.
-  **This is not evidence of an Ethernet communication dropout.**
-- The wrist camera then reported frame and UVC control timeouts. Kernel messages
-  at 12:02:31 CEST report xHCI controller `0000:7a:00.4` not responding, being
-  assumed dead, and USB `10-1` disconnecting. The camera driver reported
-  `No such device` while queueing/stopping frames. The root cause of the USB
-  controller failure and any relationship to robot contact are unestablished.
-- A 20-second image probe overlapping the failure measured **15.876 Hz wrist**
-  with an **8.483-second arrival gap**, versus **29.995 Hz external** with a
-  0.053-second maximum gap. The longer CameraInfo monitor recorded a wrist gap
-  of 9.607 seconds before disconnection. Startup/recovery rates cannot be treated
-  as sustained integrated wrist performance.
-- Finger positions changed by about 0.03021 m during the monitored interval;
-  this does not establish successful button-toggle open/close cycles.
-
-Recorded kernel messages:
+Detailed evidence for the latest full-stack observation is stored under:
 
 ```text
-12:01:56 usb 10-1: Failed to query (SET_CUR) UVC control 1 on unit 3: -110
-12:02:09 usb 10-1: Failed to query (SET_CUR) UVC control 1 on unit 3: -110
-12:02:31 xhci_hcd 0000:7a:00.4: xHCI host not responding to stop endpoint command
-12:02:31 xhci_hcd 0000:7a:00.4: xHCI host controller not responding, assume dead
-12:02:31 xhci_hcd 0000:7a:00.4: HC died; cleaning up
-12:02:31 usb 10-1: USB disconnect, device number 2
-12:02:49 xhci_hcd 0000:7a:00.4: WARNING: Host Controller Error
+docs/validation/2026-09-08_full_stack_acceptance_131539/
 ```
 
-See [camera log](validation/2026-09-08-cameras.log) and
-[read-only monitor log](validation/2026-09-08-monitor.log) for the captured
-runtime messages, including the full controller exception. The monitor's final
-KeyboardInterrupt is from deliberately stopping the diagnostic process.
-The camera log removes ANSI escapes and compacts consecutive repeats with their
-counts and last occurrence: the disconnected wrist driver emitted 58,498 copies
-of the same frame-queue `No such device` error. The raw 10 MB capture remains at
-`/tmp/fr3-integrated-cameras.log` on the commissioning host.
-Both camera nodes were then stopped and exited cleanly. Robot/Servo/SpaceMouse
-processes were left under operator control; no robot commands or fault recovery
-commands were sent by this package or the validation monitor.
+This directory contains the machine-readable event stream, manual observations, camera cadence data, node/process snapshots, USB/kernel captures, repository provenance, and integrity manifest.
 
-Still unverified: smooth XYZ translation and XYZ rotation across the full
-checklist, button-1 open/close toggle, sustained simultaneous RGB updates during
-motion, a completed 10–15 minute integrated run, and absence of communication
-dropouts over that full interval. Recovery of the wrist USB connection and an
-operator-supervised repeat test are required. No dependency modification was
-attempted to address these hardware/physical-test failures.
+The raw evidence should be used for detailed debugging or audit. This document intentionally keeps only the current commissioning conclusions and the evidence needed to interpret them.
 
-## Repository isolation baseline
+## Remaining acceptance item
 
-Actual Franka Git root: `/home/hvl-robotics2404/franka_ros2_ws/src`.
-Pre-existing status:
+Repeat the complete FR3 + dual-RGB + MoveIt + Servo + SpaceMouse + gripper stack for **15 uninterrupted minutes** using the procedure in [`commissioning.md`](commissioning.md).
 
-```text
- M franka_fr3_moveit_config/rviz/moveit.rviz
-?? franka_fr3_moveit_config/config/pilz_cartesian_limits.yaml
-?? igd_fr3_control/
-?? olvx_descriptions_module/
-```
-
-Pre-existing `src/igd_fr3_control` status:
-
-```text
- M igd_fr3_control/view_capture.py
-?? igd_fr3_control/display_grasp_rviz.py
-?? igd_fr3_control/test_grasp.py
-?? igd_fr3_control/view_capture2.py
-```
-
-Both tracked diffs were compared byte-for-byte with the inspection baseline;
-the igd status was also identical. The only intended additional parent status
-entry is `?? fr3_lab_stack/`. No parent Git index, configuration, or ignore file
-was edited. No existing source file was modified by this task; generated
-workspace build/install/log artifacts were produced by colcon.
+The stack should be considered fully commissioned only after that run completes without camera/USB failure, robot communication failure, unexpected controller failure, or unrecoverable Servo state.

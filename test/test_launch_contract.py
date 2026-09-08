@@ -58,7 +58,7 @@ def test_resolved_camera_identity_and_parameters(depth):
 
 
 def test_research_image_displays():
-    config = yaml.safe_load((ROOT / 'rviz/fr3_research.rviz').read_text())
+    config = yaml.safe_load((ROOT / 'rviz/fr3_lab_stack.rviz').read_text())
     displays = config['Visualization Manager']['Displays']
     images = [d for d in displays if d['Class'] == 'rviz_default_plugins/Image']
     assert {d['Name']: d['Topic']['Value'] for d in images} == {

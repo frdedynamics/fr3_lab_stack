@@ -1,64 +1,61 @@
-# FR3 lab stack
+# FR3 Lab Stack
 
-Tested target: Ubuntu 24.04 / ROS 2 Jazzy, `realsense2_camera` 4.57.7,
-librealsense 2.57.7. See [commissioning](docs/commissioning.md) for validation
-commands and [validation results](docs/validation.md) for what was actually tested.
+ROS 2 bringup and validation utilities for the HVL FR3 lab setup. The package currently provides reproducible dual-RealSense RGB bringup and an RViz configuration that shows both camera streams alongside the existing Franka MoveIt visualization.
 
-Current validation: build and launch checks passed, both RGB panes were confirmed
-visible, and optional depth produced images. The integrated motion test stopped
-early after operator-observed object contact triggered `cartesian_reflex`; the
-wrist USB host controller also failed. A full 15-minute acceptance run remains
-outstanding. Details and captured logs are in the validation record.
+## Tested environment
 
-## Build and cameras
+- Ubuntu 24.04
+- ROS 2 Jazzy
+- `realsense2_camera` 4.57.7
+- librealsense 2.57.7
+- Franka FR3 with gripper
+- MoveIt Servo + SpaceMouse teleoperation
+
+## Build
 
 ```bash
 cd ~/franka_ros2_ws
 source /opt/ros/jazzy/setup.bash
+
 PYTHONNOUSERSITE=1 colcon build --packages-select fr3_lab_stack
 source install/setup.bash
-ros2 launch fr3_lab_stack dual_realsense.launch.py
 ```
 
-Stop any existing processes using either camera before launching. To enable
-depth on both devices, restart with:
-
-```bash
-ros2 launch fr3_lab_stack dual_realsense.launch.py enable_depth:=true
-```
-
-If CMake selects Miniconda Python and reports missing `catkin_pkg` or `pytest`,
-select the installed ROS system interpreter without installing packages:
+If CMake selects the Miniconda interpreter and reports missing ROS Python packages, rebuild once with:
 
 ```bash
 PYTHONNOUSERSITE=1 colcon build --packages-select fr3_lab_stack \
   --cmake-args -DPython3_EXECUTABLE=/usr/bin/python3
 ```
 
-This choice is cached for subsequent plain builds.
+## Dual RealSense cameras
 
-| Role / camera name | Serial | RGB topic |
+Start both cameras:
+
+```bash
+ros2 launch fr3_lab_stack dual_realsense.launch.py
+```
+
+Default configuration:
+
+| Role | Serial | RGB topic |
 | --- | --- | --- |
-| `wrist_camera` | `342222073510` | `/camera/wrist_camera/color/image_raw` |
-| `external_camera` | `244222076317` | `/camera/external_camera/color/image_raw` |
+| Wrist | `342222073510` | `/camera/wrist_camera/color/image_raw` |
+| External | `244222076317` | `/camera/external_camera/color/image_raw` |
 
-Both use namespace `/camera`, RGB8, `1280x720x30`, color enabled, depth disabled
-by default, gyro and accelerometer disabled. All other settings inherit the
-installed driver's defaults, including QoS, timestamps, and synchronization.
-No firmware or package upgrade is part of bringup. The underscore preceding
-serials in the launch prevents YAML integer conversion; the driver strips it.
-Separate launch scopes prevent camera arguments leaking between devices.
+Both cameras use RGB8 at `1280x720x30`. Depth, gyro, and accelerometer are disabled by default.
 
-The cameras are **not hardware synchronized**. Previously measured online RGB
-offsets supplied by the operator were mean 18.94 ms, median 18.97 ms,
-p95 20.34 ms, maximum 20.63 ms; these are historical measurements, not guarantees
-or measurements made by this package. RGB supports the initial SAPS/π0.5
-baseline; inference, calibration, image pairing, and preprocessing are outside
-this package.
+Enable depth when needed:
 
-## One MoveIt RViz session with both images
+```bash
+ros2 launch fr3_lab_stack dual_realsense.launch.py enable_depth:=true
+```
 
-Start the existing physical robot stack in a separate sourced terminal:
+The cameras are not hardware synchronized. The launch keeps fixed serial-to-role binding but does not implement calibration, pairing, preprocessing, or policy inference.
+
+## FR3 + MoveIt + RViz
+
+Start the existing FR3 MoveIt stack:
 
 ```bash
 ros2 launch franka_fr3_moveit_config moveit.launch.py \
@@ -68,61 +65,43 @@ ros2 launch franka_fr3_moveit_config moveit.launch.py \
   load_gripper:=true
 ```
 
-In that RViz window choose **File → Open Config** and load:
+In the running RViz session, use **File → Open Config** and load:
 
 ```text
-~/franka_ros2_ws/src/fr3_lab_stack/rviz/fr3_research.rviz
+~/franka_ros2_ws/src/fr3_lab_stack/rviz/fr3_lab_stack.rviz
 ```
 
-If the dialog does not expand `~`, paste the full path. The installed copy is
-also available at the path printed by:
+The project RViz configuration preserves the normal MoveIt visualization and adds:
+
+- **Wrist RGB**
+- **External RGB**
+
+## Servo + SpaceMouse
+
+Start Servo:
 
 ```bash
-ros2 pkg prefix --share fr3_lab_stack
+ros2 launch igd_fr3_control fr3_spacemouse_servocontrol.launch.py
 ```
 
-Append `/rviz/fr3_research.rviz` to that path. Enable both image panes under
-**Panels** if needed and dock **Wrist RGB** and **External RGB** beside the
-robot view so both remain visible (not tabs behind one another). The old Qt
-dock-state blob was reset because it referenced two identically named `Image`
-panes. Save layout adjustments only to this project's source RViz file.
-
-The installed Franka launch hardcodes its RViz file and offers neither a config
-argument nor a switch to suppress RViz. Loading the project file in the same
-process preserves the robot description, semantic description, planning pipeline,
-and kinematics parameters supplied at startup. There is deliberately no
-`fr3_full_stack.launch.py`: separate launches plus File → Open Config avoid
-duplicating or depending on private internals of the Franka launch.
-
-Inspection also found `robot_type` and `load_gripper` are not declared or read by
-this particular MoveIt launch: it always selects FR3 and includes the gripper.
-The command above preserves the established operator procedure.
-
-The RViz baseline is the **locally used, already modified** Franka config at
-checkout `1369a2c`; its source hash and attribution are in [NOTICE](NOTICE).
-All non-Image displays, MoveIt settings, tools, fixed frame, and views are
-preserved. Legacy Marker/PointCloud/TF displays may report missing data from
-older experiments. RGB Image displays do not need extrinsic calibration or a
-transform from the cameras to the robot. No camera-to-robot transform is invented.
-
-Start Servo and SpaceMouse separately after robot bringup; commands and the
-operator test checklist are in [commissioning](docs/commissioning.md).
-
-## Repository hosting
-
-This is an independent local Git repository. Local author identity is
-`ehsann90 <ehsan.kh69@gmail.com>`, matching the existing lab commits.
-The workstation filesystem owner is the local OS user, not a GitHub organization.
-GitHub organization ownership and access require a hosted repository. No remote
-is created or pushed automatically. After confirming destination and visibility:
+Start the SpaceMouse publisher:
 
 ```bash
-cd ~/franka_ros2_ws/src/fr3_lab_stack
-gh repo create frdedynamics/fr3_lab_stack --private --source=. --remote=origin
-git push -u origin main
+ros2 run igd_fr3_control spacemouse_twiststamped_publisher \
+  --ros-args \
+  -p topic:=/servo_node/delta_twist_cmds
 ```
 
-If the lab repository already exists, use `git remote add origin
-git@github.com:frdedynamics/fr3_lab_stack.git` instead of `gh repo create`, then
-inspect its history before pushing. Creating the repository requires permission
-in `frdedynamics`; commit attribution alone does not grant collaborator access.
+See [`docs/commissioning.md`](docs/commissioning.md) for the integrated acceptance procedure.
+
+## Validation status
+
+Software build, launch, camera identity, optional depth, and RViz image-display checks have passed.
+
+In the latest integrated observation on 2026-09-08, both RGB camera streams remained stable for **525.137 s** at approximately **29.98 Hz**, with no camera restart, disconnect, or new USB/xHCI error. The run was interrupted by a MoveIt Servo singularity safeguard before the required uninterrupted 15-minute acceptance period was completed.
+
+After the monitored interval, the operator used MoveIt planning to move the arm to a nonsingular configuration and SpaceMouse teleoperation resumed. This supports interpretation of the event as expected singularity protection rather than a persistent Servo, controller, or communication failure.
+
+The final uninterrupted **15-minute physical acceptance run remains pending**.
+
+See [`docs/validation.md`](docs/validation.md) for the current validation record and evidence references.
