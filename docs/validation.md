@@ -99,12 +99,74 @@ Both camera processes were stopped cleanly and a second USB reconnection was
 requested before restoring the default RGB-only launch. No reset workaround,
 firmware change, package upgrade, or dependency edit was introduced.
 
-Pending camera recovery and physical test. No claim yet of simultaneous visible
-RGB in RViz, image updates during arm motion,
-or a 10–15 minute integrated FR3/Servo/SpaceMouse/gripper run. Prior dependency
-commissioning results and supplied historical camera rates are not substituted
-for this run. Translation/rotation smoothness, gripper toggle, Servo operation,
-and absence of new ros2_control dropouts require operator observation and logs.
+After a second external USB reconnection, the RGB-only launch was restored and
+both depth parameters were verified false. The lightweight RGB checker measured
+**28.993 Hz wrist / 28.936 Hz external** over 20 seconds, with 550/548 received
+1280×720 `rgb8` images and a maximum arrival gap of 0.368 seconds for each.
+
+The operator loaded the project config through File → Open Config in the existing
+MoveIt RViz process and confirmed: **both images visible; starting the 15-minute
+test**. A process check found one RViz and one Servo process. ROS graph warnings
+about duplicate `rviz2` and `servo_node` names reflected multiple nodes within
+those processes, not two launches of either executable.
+
+The physical run was interrupted after a few minutes and **did not pass the
+15-minute acceptance test**:
+
+- During the first 45 seconds of monitoring, both CameraInfo streams continued
+  with maximum arrival gaps below 0.035 seconds while all seven arm joint
+  positions changed. Servo logged deceleration when approaching/leaving a
+  singularity. This confirms concurrent telemetry during motion, not subjective
+  smoothness of every SpaceMouse axis.
+- Between the 45- and 90-second monitor reports, libfranka reported
+  `Move command aborted: motion aborted by reflex! ["cartesian_reflex"]`.
+  Controller manager deactivated the hardware and arm/state controllers because
+  that exception surfaced in the read cycle. The operator explicitly confirmed
+  the robot contacted an object while attempting a grasp, triggering the stop.
+  **This is not evidence of an Ethernet communication dropout.**
+- The wrist camera then reported frame and UVC control timeouts. Kernel messages
+  at 12:02:31 CEST report xHCI controller `0000:7a:00.4` not responding, being
+  assumed dead, and USB `10-1` disconnecting. The camera driver reported
+  `No such device` while queueing/stopping frames. The root cause of the USB
+  controller failure and any relationship to robot contact are unestablished.
+- A 20-second image probe overlapping the failure measured **15.876 Hz wrist**
+  with an **8.483-second arrival gap**, versus **29.995 Hz external** with a
+  0.053-second maximum gap. The longer CameraInfo monitor recorded a wrist gap
+  of 9.607 seconds before disconnection. Startup/recovery rates cannot be treated
+  as sustained integrated wrist performance.
+- Finger positions changed by about 0.03021 m during the monitored interval;
+  this does not establish successful button-toggle open/close cycles.
+
+Recorded kernel messages:
+
+```text
+12:01:56 usb 10-1: Failed to query (SET_CUR) UVC control 1 on unit 3: -110
+12:02:09 usb 10-1: Failed to query (SET_CUR) UVC control 1 on unit 3: -110
+12:02:31 xhci_hcd 0000:7a:00.4: xHCI host not responding to stop endpoint command
+12:02:31 xhci_hcd 0000:7a:00.4: xHCI host controller not responding, assume dead
+12:02:31 xhci_hcd 0000:7a:00.4: HC died; cleaning up
+12:02:31 usb 10-1: USB disconnect, device number 2
+12:02:49 xhci_hcd 0000:7a:00.4: WARNING: Host Controller Error
+```
+
+See [camera log](validation/2026-09-08-cameras.log) and
+[read-only monitor log](validation/2026-09-08-monitor.log) for the captured
+runtime messages, including the full controller exception. The monitor's final
+KeyboardInterrupt is from deliberately stopping the diagnostic process.
+The camera log removes ANSI escapes and compacts consecutive repeats with their
+counts and last occurrence: the disconnected wrist driver emitted 58,498 copies
+of the same frame-queue `No such device` error. The raw 10 MB capture remains at
+`/tmp/fr3-integrated-cameras.log` on the commissioning host.
+Both camera nodes were then stopped and exited cleanly. Robot/Servo/SpaceMouse
+processes were left under operator control; no robot commands or fault recovery
+commands were sent by this package or the validation monitor.
+
+Still unverified: smooth XYZ translation and XYZ rotation across the full
+checklist, button-1 open/close toggle, sustained simultaneous RGB updates during
+motion, a completed 10–15 minute integrated run, and absence of communication
+dropouts over that full interval. Recovery of the wrist USB connection and an
+operator-supervised repeat test are required. No dependency modification was
+attempted to address these hardware/physical-test failures.
 
 ## Repository isolation baseline
 

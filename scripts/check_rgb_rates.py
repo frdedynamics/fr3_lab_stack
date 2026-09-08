@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 # Copyright 2026 frdedynamics
 # SPDX-License-Identifier: Apache-2.0
 """Bounded RGB reception check; retain counters only, never image data."""

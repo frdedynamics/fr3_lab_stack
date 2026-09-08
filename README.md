@@ -4,6 +4,12 @@ Tested target: Ubuntu 24.04 / ROS 2 Jazzy, `realsense2_camera` 4.57.7,
 librealsense 2.57.7. See [commissioning](docs/commissioning.md) for validation
 commands and [validation results](docs/validation.md) for what was actually tested.
 
+Current validation: build and launch checks passed, both RGB panes were confirmed
+visible, and optional depth produced images. The integrated motion test stopped
+early after operator-observed object contact triggered `cartesian_reflex`; the
+wrist USB host controller also failed. A full 15-minute acceptance run remains
+outstanding. Details and captured logs are in the validation record.
+
 ## Build and cameras
 
 ```bash

@@ -40,9 +40,8 @@ only the first image per camera to check size/encoding. It uses ordinary default
 ROS subscription QoS, changes no driver settings, and stores no images. Exit 0
 means each camera produced at least two samples; inspect the printed rates
 against the approximately 30 Hz requirement. Subscriber rates are not a
-hardware synchronization measurement. With an active Conda environment, run
-`/usr/bin/python3 ~/franka_ros2_ws/src/fr3_lab_stack/scripts/check_rgb_rates.py
---seconds 20` to select the ROS interpreter explicitly.
+hardware synchronization measurement. Its interpreter is `/usr/bin/python3`,
+matching the installed Ubuntu ROS tools even when Conda is active.
 
 Confirm logs associate the requested serial with the correct node and report
 the active Color profile. Serial parameters may retain the leading underscore.

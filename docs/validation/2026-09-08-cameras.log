@@ -1,0 +1,104 @@
+# Captured camera console; ANSI removed and repeated consecutive messages compacted.
+# Raw capture remains at /tmp/fr3-integrated-cameras.log on the commissioning host.
+[INFO] [launch]: All log files can be found below /home/hvl-robotics2404/.ros/log/2026-09-08-11-59-10-131301-hvl-robotics2404-63975
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [launch.user]: 🚀 Launching as Normal ROS Node
+# Previous message repeated 2 times total (time fields ignored for grouping). Last occurrence:
+[INFO] [launch.user]: 🚀 Launching as Normal ROS Node
+[INFO] [realsense2_camera_node-1]: process started with pid [63978]
+[INFO] [realsense2_camera_node-2]: process started with pid [63979]
+[realsense2_camera_node-1] [INFO] [1788861550.245974660] [camera.wrist_camera]: RealSense ROS v4.57.7
+[realsense2_camera_node-1] [INFO] [1788861550.246037899] [camera.wrist_camera]: Built with LibRealSense v2.57.7
+[realsense2_camera_node-1] [INFO] [1788861550.246044190] [camera.wrist_camera]: Running with LibRealSense v2.57.7
+[realsense2_camera_node-2] [INFO] [1788861550.249137544] [camera.external_camera]: RealSense ROS v4.57.7
+[realsense2_camera_node-2] [INFO] [1788861550.249195413] [camera.external_camera]: Built with LibRealSense v2.57.7
+[realsense2_camera_node-2] [INFO] [1788861550.249201233] [camera.external_camera]: Running with LibRealSense v2.57.7
+[realsense2_camera_node-1] [INFO] [1788861550.292762585] [camera.wrist_camera]: Device with serial number 342222073510 was found.
+[realsense2_camera_node-1]
+[realsense2_camera_node-1] [INFO] [1788861550.292796870] [camera.wrist_camera]: Device with physical ID /sys/devices/pci0000:00/0000:00:08.1/0000:7a:00.4/usb10/10-1/10-1:1.0/video4linux/video0 was found.
+[realsense2_camera_node-1] [INFO] [1788861550.292803221] [camera.wrist_camera]: Device with name Intel RealSense D435I was found.
+[realsense2_camera_node-1] [INFO] [1788861550.292891136] [camera.wrist_camera]: Device with port number 10-1 was found.
+[realsense2_camera_node-1] [INFO] [1788861550.292896356] [camera.wrist_camera]: Device USB type: 3.2
+[realsense2_camera_node-1] [INFO] [1788861550.292940147] [camera.wrist_camera]: getParameters...
+[realsense2_camera_node-1] [INFO] [1788861550.293176549] [camera.wrist_camera]: JSON file is not provided
+[realsense2_camera_node-1] [INFO] [1788861550.293183152] [camera.wrist_camera]: Device Name: Intel RealSense D435I
+[realsense2_camera_node-1] [INFO] [1788861550.293186027] [camera.wrist_camera]: Device Serial No: 342222073510
+[realsense2_camera_node-1] [INFO] [1788861550.293189744] [camera.wrist_camera]: Device physical port: /sys/devices/pci0000:00/0000:00:08.1/0000:7a:00.4/usb10/10-1/10-1:1.0/video4linux/video0
+[realsense2_camera_node-1] [INFO] [1788861550.293195906] [camera.wrist_camera]: Device FW version: 5.13.0.55
+[realsense2_camera_node-1] [INFO] [1788861550.293201476] [camera.wrist_camera]: Device Product ID: 0x0B3A
+[realsense2_camera_node-1] [INFO] [1788861550.293203841] [camera.wrist_camera]: Sync Mode: Off
+[realsense2_camera_node-2] [INFO] [1788861550.294698085] [camera.external_camera]: Device with serial number 342222073510 was found.
+[realsense2_camera_node-2]
+[realsense2_camera_node-2] [INFO] [1788861550.294724103] [camera.external_camera]: Device with physical ID /sys/devices/pci0000:00/0000:00:08.1/0000:7a:00.4/usb10/10-1/10-1:1.0/video4linux/video0 was found.
+[realsense2_camera_node-2] [INFO] [1788861550.294729934] [camera.external_camera]: Device with name Intel RealSense D435I was found.
+[realsense2_camera_node-2] [INFO] [1788861550.294806377] [camera.external_camera]: Device with port number 10-1 was found.
+[realsense2_camera_node-2] [INFO] [1788861550.301384777] [camera.external_camera]: Device with serial number 244222076317 was found.
+[realsense2_camera_node-2]
+[realsense2_camera_node-2] [INFO] [1788861550.301400597] [camera.external_camera]: Device with physical ID /sys/devices/pci0000:00/0000:00:02.2/0000:12:00.0/0000:13:02.0/0000:78:00.0/usb6/6-1/6-1:1.0/video4linux/video6 was found.
+[realsense2_camera_node-2] [INFO] [1788861550.301405576] [camera.external_camera]: Device with name Intel RealSense D435I was found.
+[realsense2_camera_node-2] [INFO] [1788861550.301477741] [camera.external_camera]: Device with port number 6-1 was found.
+[realsense2_camera_node-2] [INFO] [1788861550.301481989] [camera.external_camera]: Device USB type: 3.2
+[realsense2_camera_node-2] [INFO] [1788861550.301511595] [camera.external_camera]: getParameters...
+[realsense2_camera_node-2] [INFO] [1788861550.301691411] [camera.external_camera]: JSON file is not provided
+[realsense2_camera_node-2] [INFO] [1788861550.301702542] [camera.external_camera]: Device Name: Intel RealSense D435I
+[realsense2_camera_node-2] [INFO] [1788861550.301705848] [camera.external_camera]: Device Serial No: 244222076317
+[realsense2_camera_node-2] [INFO] [1788861550.301714143] [camera.external_camera]: Device physical port: /sys/devices/pci0000:00/0000:00:02.2/0000:12:00.0/0000:13:02.0/0000:78:00.0/usb6/6-1/6-1:1.0/video4linux/video6
+[realsense2_camera_node-2] [INFO] [1788861550.301718912] [camera.external_camera]: Device FW version: 5.17.3.10
+[realsense2_camera_node-2] [INFO] [1788861550.301721487] [camera.external_camera]: Device Product ID: 0x0B3A
+[realsense2_camera_node-2] [INFO] [1788861550.301723721] [camera.external_camera]: Sync Mode: Off
+[realsense2_camera_node-1] [INFO] [1788861550.369790404] [camera.wrist_camera]: Set ROS param depth_module.depth_profile to default: 848x480x30
+[realsense2_camera_node-1] [INFO] [1788861550.369954882] [camera.wrist_camera]: Set ROS param depth_module.infra_profile to default: 848x480x30
+[realsense2_camera_node-1] [INFO] [1788861550.372291250] [camera.wrist_camera]: Set ROS param gyro_fps to default: 200
+[realsense2_camera_node-1] [INFO] [1788861550.372327538] [camera.wrist_camera]: Set ROS param accel_fps to default: 100
+[realsense2_camera_node-1] [INFO] [1788861550.374988814] [camera.wrist_camera]: Stopping Sensor: RGB Camera
+[realsense2_camera_node-1] [INFO] [1788861550.396270036] [camera.wrist_camera]: Starting Sensor: RGB Camera
+[realsense2_camera_node-1] [INFO] [1788861550.398160481] [camera.wrist_camera]: Open profile: stream_type: Color(0), Format: RGB8, Width: 1280, Height: 720, FPS: 30
+[realsense2_camera_node-1] [INFO] [1788861550.402212578] [camera.wrist_camera]: RealSense Node Is Up!
+[realsense2_camera_node-2] [INFO] [1788861550.404284953] [camera.external_camera]: Set ROS param depth_module.depth_profile to default: 848x480x30
+[realsense2_camera_node-2] [INFO] [1788861550.404434893] [camera.external_camera]: Set ROS param depth_module.infra_profile to default: 848x480x30
+[realsense2_camera_node-2] [INFO] [1788861550.406861791] [camera.external_camera]: Set ROS param gyro_fps to default: 200
+[realsense2_camera_node-2] [INFO] [1788861550.406911855] [camera.external_camera]: Set ROS param accel_fps to default: 100
+[realsense2_camera_node-2] [INFO] [1788861550.409666696] [camera.external_camera]: Stopping Sensor: RGB Camera
+[realsense2_camera_node-2] [INFO] [1788861550.421953179] [camera.external_camera]: Starting Sensor: RGB Camera
+[realsense2_camera_node-2] [INFO] [1788861550.425716085] [camera.external_camera]: Open profile: stream_type: Color(0), Format: RGB8, Width: 1280, Height: 720, FPS: 30
+[realsense2_camera_node-2] [INFO] [1788861550.429722607] [camera.external_camera]: RealSense Node Is Up!
+[realsense2_camera_node-1]  08/09 12:01:52,292 WARNING [127774145566400] (backend-v4l2.cpp:1982) Frames didn't arrived within 5 seconds
+[realsense2_camera_node-1] [WARN] [1788861712.292427912] [camera.wrist_camera]: XXX Hardware Notification:Frames didn't arrived within 5 seconds,1.78886e+12,Warn,Frames Timeout
+[realsense2_camera_node-1]  08/09 12:01:56,815 ERROR [127774438176448] (librealsense-exception.h:52) set_xu(...). xioctl(UVCIOC_CTRL_QUERY) failed on control 1 Last Error: Connection timed out
+[realsense2_camera_node-1]  08/09 12:01:56,816 ERROR [127774438176448] (global_timestamp_reader.cpp:253) Error during time_diff_keeper polling: set_xu(...). xioctl(UVCIOC_CTRL_QUERY) failed on control 1 Last Error: Connection timed out
+[realsense2_camera_node-1]  08/09 12:02:05,795 WARNING [127774145566400] (backend-v4l2.cpp:1982) Frames didn't arrived within 5 seconds
+[realsense2_camera_node-1] [WARN] [1788861725.795394158] [camera.wrist_camera]: XXX Hardware Notification:Frames didn't arrived within 5 seconds,1.78886e+12,Warn,Frames Timeout
+[realsense2_camera_node-1]  08/09 12:02:09,181 ERROR [127774438176448] (librealsense-exception.h:52) set_xu(...). xioctl(UVCIOC_CTRL_QUERY) failed on control 1 Last Error: Connection timed out
+[realsense2_camera_node-1]  08/09 12:02:09,181 ERROR [127774438176448] (global_timestamp_reader.cpp:253) Error during time_diff_keeper polling: set_xu(...). xioctl(UVCIOC_CTRL_QUERY) failed on control 1 Last Error: Connection timed out
+[realsense2_camera_node-1]  08/09 12:02:24,982 WARNING [127774145566400] (backend-v4l2.cpp:1982) Frames didn't arrived within 5 seconds
+[realsense2_camera_node-1] [WARN] [1788861744.982811760] [camera.wrist_camera]: XXX Hardware Notification:Frames didn't arrived within 5 seconds,1.78886e+12,Warn,Frames Timeout
+[realsense2_camera_node-1]  08/09 12:02:30,007 WARNING [127774145566400] (backend-v4l2.cpp:1982) Frames didn't arrived within 5 seconds
+[realsense2_camera_node-1] [WARN] [1788861750.007873452] [camera.wrist_camera]: XXX Hardware Notification:Frames didn't arrived within 5 seconds,1.78886e+12,Warn,Frames Timeout
+[realsense2_camera_node-1]  08/09 12:02:31,102 ERROR [127774438176448] (librealsense-exception.h:52) set_xu(...). xioctl(UVCIOC_CTRL_QUERY) failed on control 1 Last Error: Connection timed out
+[realsense2_camera_node-1]  08/09 12:02:31,102 ERROR [127774145566400] (backend-v4l2.cpp:3377) xioctl(VIDIOC_QBUF) failed when requesting new frame! fd: 66 error: No such device
+# Previous message repeated 2 times total (time fields ignored for grouping). Last occurrence:
+[realsense2_camera_node-1]  08/09 12:02:31,102 ERROR [127774145566400] (backend-v4l2.cpp:3377) xioctl(VIDIOC_QBUF) failed when requesting new frame! fd: 66 error: No such device
+[realsense2_camera_node-1]  08/09 12:02:31,102 ERROR [127774438176448] (global_timestamp_reader.cpp:253) Error during time_diff_keeper polling: set_xu(...). xioctl(UVCIOC_CTRL_QUERY) failed on control 1 Last Error: Connection timed out
+[realsense2_camera_node-1]  08/09 12:02:31,102 ERROR [127774145566400] (backend-v4l2.cpp:3377) xioctl(VIDIOC_QBUF) failed when requesting new frame! fd: 66 error: No such device
+# Previous message repeated 58453 times total (time fields ignored for grouping). Last occurrence:
+[realsense2_camera_node-1]  08/09 12:02:31,278 ERROR [127774145566400] (backend-v4l2.cpp:3377) xioctl(VIDIOC_QBUF) failed when requesting new frame! fd: 66 error: No such device
+[realsense2_camera_node-1] [ERROR] [1788861751.278125250] [camera.wrist_camera]: The device has been disconnected!
+[realsense2_camera_node-1]  08/09 12:02:31,278 ERROR [127774145566400] (backend-v4l2.cpp:3377) xioctl(VIDIOC_QBUF) failed when requesting new frame! fd: 66 error: No such device
+# Previous message repeated 43 times total (time fields ignored for grouping). Last occurrence:
+[realsense2_camera_node-1]  08/09 12:02:31,278 ERROR [127774145566400] (backend-v4l2.cpp:3377) xioctl(VIDIOC_QBUF) failed when requesting new frame! fd: 66 error: No such device
+[realsense2_camera_node-1]  08/09 12:02:31,278 ERROR [127774446569152] (librealsense-exception.h:52) xioctl(VIDIOC_STREAMOFF) failed for buf_type=13 Last Error: No such device
+[realsense2_camera_node-1] [INFO] [1788861751.278304184] [camera.wrist_camera]: Stop Sensor: RGB Camera
+[realsense2_camera_node-1] [INFO] [1788861751.278325744] [camera.wrist_camera]: Close Sensor.
+[realsense2_camera_node-1] [INFO] [1788861752.103155117] [camera.wrist_camera]: Close Sensor - Done.
+[WARNING] [launch]: user interrupted with ctrl-c (SIGINT)
+[realsense2_camera_node-2] [INFO] [1788861789.162641452] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[realsense2_camera_node-2] [INFO] [1788861789.162889135] [camera.external_camera]: Stop Sensor: RGB Camera
+[realsense2_camera_node-2] [INFO] [1788861789.162903742] [camera.external_camera]: Close Sensor.
+[realsense2_camera_node-1] [INFO] [1788861789.162637865] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[INFO] [realsense2_camera_node-2]: sending signal 'SIGINT' to process[realsense2_camera_node-2]
+[INFO] [realsense2_camera_node-1]: sending signal 'SIGINT' to process[realsense2_camera_node-1]
+[realsense2_camera_node-1] [INFO] [1788861789.164121419] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[realsense2_camera_node-2] [INFO] [1788861789.164571000] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[INFO] [realsense2_camera_node-1]: process has finished cleanly [pid 63978]
+[realsense2_camera_node-2] [INFO] [1788861789.989464220] [camera.external_camera]: Close Sensor - Done.
+[INFO] [realsense2_camera_node-2]: process has finished cleanly [pid 63979]

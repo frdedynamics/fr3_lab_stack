@@ -1,0 +1,25 @@
+{"warning": "servo_node.servo_node.moveit.ros.servo: Moving closer to a singularity, decelerating"}
+{"warning": "servo_node.servo_node.moveit.ros.servo: Moving away from a singularity, decelerating"}
+{"elapsed_s": 45.0, "counts": {"wrist_camera": 1312, "external_camera": 1326, "joint_states": 1291}, "max_camera_arrival_gap_s": {"external_camera": 0.03412196099998255, "wrist_camera": 0.03430050499991921}, "warning_types": 2, "joint_ranges": {"fr3_joint1": 0.30419, "fr3_joint2": 0.90697, "fr3_joint3": 0.27265, "fr3_joint4": 0.51309, "fr3_joint5": 0.62535, "fr3_joint6": 1.07885, "fr3_joint7": 1.06626, "fr3_finger_joint1": 0.0, "fr3_finger_joint2": 0.0}}
+{"warning": "controller_manager: Exception of type : N6franka16ControlExceptionE thrown during read of the component 'FrankaHardwareInterface': libfranka: Move command aborted: motion aborted by reflex! [\"cartesian_reflex\"]"}
+{"warning": "controller_manager: Deactivating following hardware components as their read cycle resulted in an error: [ FrankaHardwareInterface ]"}
+{"warning": "controller_manager: Deactivating following controllers as their hardware components read cycle resulted in an error: [ franka_robot_state_broadcaster fr3_arm_controller joint_state_broadcaster ]"}
+{"warning": "camera.wrist_camera: XXX Hardware Notification:Frames didn't arrived within 5 seconds,1.78886e+12,Warn,Frames Timeout"}
+{"elapsed_s": 90.0, "counts": {"wrist_camera": 1840, "external_camera": 2676, "joint_states": 2640}, "max_camera_arrival_gap_s": {"external_camera": 0.03456016099880799, "wrist_camera": 9.60748163399876}, "warning_types": 6, "joint_ranges": {"fr3_joint1": 0.30419, "fr3_joint2": 1.01662, "fr3_joint3": 0.37424, "fr3_joint4": 0.51309, "fr3_joint5": 0.62535, "fr3_joint6": 1.14751, "fr3_joint7": 1.06626, "fr3_finger_joint1": 0.03021, "fr3_finger_joint2": 0.03021}}
+{"warning": "camera.wrist_camera: The device has been disconnected!"}
+Traceback (most recent call last):
+  File "/tmp/fr3_integrated_monitor.py", line 35, in <module>
+    rclpy.spin_once(node,timeout_sec=0.2)
+  File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/__init__.py", line 226, in spin_once
+    executor.spin_once(timeout_sec=timeout_sec)
+  File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 926, in spin_once
+    self._spin_once_impl(timeout_sec)
+  File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 907, in _spin_once_impl
+    handler, entity, node = self.wait_for_ready_callbacks(
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 877, in wait_for_ready_callbacks
+    return next(self._cb_iter)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 781, in _wait_for_ready_callbacks
+    wait_set.wait(timeout_nsec)
+KeyboardInterrupt
