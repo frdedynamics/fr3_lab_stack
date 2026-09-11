@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.8)
 project(fr3_lab_stack)
 
 find_package(ament_cmake REQUIRED)
+find_package(ament_cmake_python REQUIRED)
+
+ament_python_install_package(fr3_lab_stack_runtime)
+
 install(DIRECTORY launch rviz docs DESTINATION share/${PROJECT_NAME})
 install(FILES README.md LICENSE NOTICE DESTINATION share/${PROJECT_NAME})
 install(PROGRAMS scripts/check_rgb_rates.py DESTINATION lib/${PROJECT_NAME})

@@ -1,17 +1,12 @@
 """Hardware-independent validation and mocked transport contract tests."""
 import copy
-import importlib.util
 import json
-from pathlib import Path
 from types import SimpleNamespace as NS
 from unittest.mock import Mock
 
 import pytest
 
-SPEC = importlib.util.spec_from_file_location(
-    'fr3_joint_target', Path(__file__).resolve().parents[1] / 'scripts/fr3_joint_target.py')
-m = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(m)
+import fr3_lab_stack_runtime.joint_target as m
 
 
 def state():
@@ -261,7 +256,8 @@ def test_mocked_transport_contract(execute, status, code, accepted):
         point = JointTrajectoryPoint(positions=[0.] * 7, velocities=[0.] * 7, accelerations=[0.] * 7)
         point.time_from_start.sec = i
         response.trajectory.joint_trajectory.points.append(point)
-    r.planner = object()
+    r.planner = Mock()
+    r.planner.wait_for_service.return_value = True
     r.call = Mock(return_value=NS(motion_plan_response=response))
     r.action = Mock()
     handle = Mock(accepted=accepted)
