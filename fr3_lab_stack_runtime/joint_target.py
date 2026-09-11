@@ -69,6 +69,17 @@ def drift_check(start, current, tolerance=0.002):
     return drift
 
 
+def reference_check(reference, current, tolerance=0.002):
+    reference = vector(reference, 'reference_q')
+    current = vector(current, 'current_q')
+    require(math.isfinite(tolerance) and tolerance > 0,
+            'reference_tolerance must be finite and positive')
+    error = [b - a for a, b in zip(reference, current)]
+    require(max(map(abs, error)) <= tolerance,
+            f'Reference state mismatch exceeds {tolerance:.6f} rad')
+    return error
+
+
 def controller_gate(controllers):
     arm = [c for c in controllers if c.name == CONTROLLER]
     require(len(arm) == 1 and arm[0].state == 'active', 'Arm controller is not active')
@@ -252,7 +263,10 @@ class RosTransport:
         from moveit_msgs.action import ExecuteTrajectory
         from rcl_interfaces.srv import GetParameters
         self.rclpy, self.args, self.evidence = rclpy, args, evidence
-        self.node = rclpy.create_node('fr3_joint_target')
+        self.node = rclpy.create_node(
+            getattr(args, 'node_name', 'fr3_joint_target'),
+            use_global_arguments=False,
+            )
         self.samples, self.counts = {}, {'joint': 0, 'franka': 0}
         self.monitoring = False
         self.node.create_subscription(JointState, '/joint_states',
@@ -373,6 +387,12 @@ class RosTransport:
         )
 
         q, _ = self.preflight('before_planning')
+        reference_q = getattr(args, 'reference_q', None)
+        if reference_q is not None:
+            reference_tolerance = getattr(args, 'reference_tolerance', 0.002)
+            out['reference_q'] = vector(reference_q, 'reference_q')
+            out['reference_error'] = reference_check(
+                out['reference_q'], q, reference_tolerance)
         target = vector(args.target if args.target is not None else
                         [a + b for a, b in zip(q, args.delta)])
         out.update(requested_absolute_target=target, planning_start_q=q)
@@ -463,12 +483,46 @@ def parser():
     return p
 
 
+
+def new_evidence():
+    return dict(
+        schema_version=1,
+        joint_names=list(JOINTS),
+        execution_attempted=False,
+        execution_attempts=0,
+        execution_action_status=None,
+        execution_error=None,
+        execution_goal_accepted=None,
+        outcome='failed',
+    )
+
+
+def validate_args(args):
+    vector(args.target if args.target is not None else args.delta)
+    for key in (
+        'velocity_scale',
+        'acceleration_scale',
+        'goal_tolerance',
+        'planning_time',
+        'stationary_threshold',
+        'freshness',
+        'timeout',
+        'execution_timeout',
+    ):
+        value = getattr(args, key)
+        require(math.isfinite(value) and value > 0, f'{key} must be finite and positive')
+    require(args.velocity_scale <= 1 and args.acceleration_scale <= 1, 'Scaling must be <= 1')
+    if getattr(args, 'reference_q', None) is not None:
+        vector(args.reference_q, 'reference_q')
+        tolerance = getattr(args, 'reference_tolerance', 0.002)
+        require(math.isfinite(tolerance) and tolerance > 0,
+                'reference_tolerance must be finite and positive')
+
+
 def main(argv=None):
     p = parser()
     args = p.parse_args(argv)
-    out = dict(schema_version=1, joint_names=list(JOINTS), execution_attempted=False,
-               execution_attempts=0, execution_action_status=None, execution_error=None,
-               execution_goal_accepted=None, outcome='failed')
+    out = new_evidence()
     ros = None
     initialized = False
     output = None
@@ -476,12 +530,7 @@ def main(argv=None):
         # Verify evidence destination before any possible command.
         if args.output:
             output = args.output.open('w', encoding='utf-8')
-        vector(args.target if args.target is not None else args.delta)
-        for key in ('velocity_scale', 'acceleration_scale', 'goal_tolerance', 'planning_time',
-                    'stationary_threshold', 'freshness', 'timeout', 'execution_timeout'):
-            value = getattr(args, key)
-            require(math.isfinite(value) and value > 0, f'{key} must be finite and positive')
-        require(args.velocity_scale <= 1 and args.acceleration_scale <= 1, 'Scaling must be <= 1')
+        validate_args(args)
         out['settings'] = {k: v for k, v in vars(args).items() if k != 'output'}
         import rclpy
         rclpy.init(args=[])

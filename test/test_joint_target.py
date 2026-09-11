@@ -76,6 +76,14 @@ def test_stationary_and_drift():
         m.drift_check([0.] * 7, [.00201] * 7)
 
 
+def test_reference_check():
+    assert m.reference_check([0.] * 7, [.002] * 7) == [.002] * 7
+    with pytest.raises(ValueError, match='Reference state mismatch'):
+        m.reference_check([0.] * 7, [.00201] * 7)
+    with pytest.raises(ValueError, match='reference_tolerance'):
+        m.reference_check([0.] * 7, [0.] * 7, 0.0)
+
+
 def test_valid_plan_metrics():
     result = validate(plan())
     assert result['duration_s'] == 1 and result['point_count'] == 2
@@ -304,6 +312,17 @@ def test_mocked_transport_contract(execute, status, code, accepted):
         assert r.evidence['cancellation_return_code'] == 0
     if not execute:
         r.preflight.assert_called_once_with('before_planning')
+
+
+
+def test_validate_args_with_reference():
+    args = m.parser().parse_args(['--target'] + ['0'] * 7)
+    args.reference_q = [0.] * 7
+    args.reference_tolerance = .002
+    m.validate_args(args)
+    args.reference_tolerance = 0.
+    with pytest.raises(ValueError, match='reference_tolerance'):
+        m.validate_args(args)
 
 
 def test_invalid_cli_json(tmp_path):
