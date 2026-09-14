@@ -330,3 +330,28 @@ def test_invalid_cli_json(tmp_path):
     assert m.main(['--target'] + ['nan'] * 7 + ['--output', str(output)]) == 1
     assert json.loads(output.read_text())['execution_attempts'] == 0
     # Invalid arguments fail before ROS initialization or any execution attempt.
+
+def test_transport_close_destroys_action_before_node():
+    transport = object.__new__(m.RosTransport)
+
+    action = Mock()
+    node = Mock()
+    transport.action = action
+    transport.node = node
+
+    order = []
+    action.destroy.side_effect = lambda: order.append('action')
+    node.destroy_node.side_effect = lambda: order.append('node')
+
+    transport.close()
+
+    assert order == ['action', 'node']
+    action.destroy.assert_called_once_with()
+    node.destroy_node.assert_called_once_with()
+    assert transport.action is None
+    assert transport.node is None
+
+    # Cleanup is deliberately idempotent.
+    transport.close()
+    action.destroy.assert_called_once_with()
+    node.destroy_node.assert_called_once_with()

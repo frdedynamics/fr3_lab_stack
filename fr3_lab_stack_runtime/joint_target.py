@@ -278,6 +278,19 @@ class RosTransport:
         self.parameters = self.node.create_client(GetParameters, '/move_group/get_parameters')
         self.action = ActionClient(self.node, ExecuteTrajectory, '/execute_trajectory')
 
+    def close(self):
+        """Release the action waitable before destroying the worker node."""
+
+        action = getattr(self, 'action', None)
+        if action is not None:
+            action.destroy()
+            self.action = None
+
+        node = getattr(self, 'node', None)
+        if node is not None:
+            node.destroy_node()
+            self.node = None
+
     def receive(self, kind, msg):
         self.counts[kind] += 1
         self.samples[kind] = (msg, time.monotonic())
@@ -541,7 +554,7 @@ def main(argv=None):
         out.update(outcome='failed', error=str(exc) or type(exc).__name__)
     finally:
         if ros is not None:
-            ros.node.destroy_node()
+            ros.close()
         if initialized:
             rclpy.try_shutdown()
     payload = json.dumps(plain(out), indent=2, allow_nan=False)

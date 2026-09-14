@@ -259,7 +259,7 @@ class JointTargetServer(Node):
 
         finally:
             if worker is not None:
-                worker.node.destroy_node()
+                worker.close()
             self._gate.release()
 
         result = ExecuteJointTarget.Result()
