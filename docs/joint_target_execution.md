@@ -344,43 +344,102 @@ the request rather than recomputing or altering `q_desired`.
 This keeps the scientific policy semantics in `saps-openpi-replication` and the
 robot-specific realization in `fr3_lab_stack`.
 
-## Temporal limitation
+## Temporal evaluation and controller transition
 
-The current MoveIt realization is deliberately conservative and is not yet a
-15 Hz DROID control realization.
+The MoveIt/`fr3_arm_controller` path remains the validated conservative baseline for commissioning, pose reset, and isolated targets, but it does not satisfy the DROID temporal requirement.
 
-The validated single target takes approximately `0.327 s`, whereas the nominal
-DROID control interval at 15 Hz is approximately `0.0667 s`.
+A small commissioning target typically required about `0.33 s` of planned trajectory time. More decisively, a real π0.5/DROID-derived physical action required:
 
-Therefore, sequentially planning and executing each of the eight policy actions
-currently selected from a pi0.5 action chunk would not reproduce the original
-DROID temporal realization.
+```text
+planned trajectory duration: 1.1048 s
+request-to-result time:       1.6032 s
+DROID action period:          0.0667 s
+eight-action DROID window:    0.5333 s
+```
 
-This is a separate follow-on problem. The policy-side state/action semantics
-should remain unchanged while a faster robot-side realization is investigated.
+Sequential MoveIt planning/execution would therefore change the policy's temporal realization substantially. The trajectory path is retained as a baseline and safe reset mechanism rather than used for 15 Hz policy execution.
+
+## Streaming hybrid impedance realization
+
+For policy-rate execution, `fr3_lab_stack` now provides:
+
+```text
+fr3_lab_stack/StreamingJointImpedanceController
+```
+
+The controller runs in the existing 1 kHz `ros2_control` loop, claims the seven FR3 effort interfaces, and accepts the latest absolute seven-joint equilibrium target. On activation it initializes `q_desired` from measured joint state and produces no internal motion. Each valid external target atomically replaces `q_desired`; targets are not queued, interpolated, rescaled, or converted into trajectories. If updates stop, the last equilibrium target is held.
+
+Hybrid mode uses the Polymetis-style structure
+
+```text
+Kp(q) = J(q)^T Kx J(q) + Kq
+Kd(q) = J(q)^T Kxd J(q) + Kqd
+tau   = Kp(q)(q_desired - q) - Kd(q)dq + coriolis
+```
+
+with the configured gains:
+
+```text
+Kq  = [40, 30, 50, 25, 35, 25, 10]
+Kqd = [4, 6, 5, 5, 3, 2, 1]
+Kx  = [750, 750, 750, 15, 15, 15]
+Kxd = [37, 37, 37, 2, 2, 2]
+```
+
+Policy semantics remain outside this package. For DROID/π0.5 integration, the policy layer still constructs each new target from fresh measured state:
+
+```text
+q_desired = q_measured + 0.2 * clip(u, -1, 1)
+```
+
+The controller only realizes the supplied absolute target.
+
+## Streaming controller commissioning
+
+A preliminary fixed-gain joint-impedance version was rejected after a zero-target activation produced `13.30 mrad` maximum pose drift. The hybrid controller reduced the same commissioning metric to `2.90 mrad`, with no external target applied.
+
+Static J1 characterization showed a small equilibrium offset rather than a proportional tracking loss. After returning to approximately the same starting configuration:
+
+```text
+command      steady displacement    steady residual
++5 mrad      2.936 mrad             2.064 mrad
++30 mrad     27.928 mrad            2.072 mrad
+```
+
+These values characterize the tested J1 configuration only; they are not assumed to be universal across joints or configurations.
+
+The first 15 Hz replacement test sent two targets using fresh measured-state anchoring at each tick:
+
+```text
+requested period:                 66.667 ms
+publisher interval:               66.807 ms
+publisher interval error:         +0.141 ms
+accepted target sequences:        1, 2
+target-2 displacement from q_measured: 5.000 mrad
+desired-target mismatch:          0
+```
+
+The controller therefore supports the required *functional* target-replacement pattern. Current state telemetry is published at 100 Hz: the first observed target ages (`6.9--10.7 ms` in the two-target test) are telemetry-quantized observations, not precise target receipt-to-application latency measurements. Exact callback receipt, first-control-cycle application, and 1 kHz controller-period/jitter instrumentation remain follow-on work before quantitative timing claims or the prerecorded eight-action DROID test.
 
 ## Scope status
 
 Validated now:
 
 ```text
-absolute target
--> MoveIt planning
--> trajectory validation
--> one explicit execution
--> measured result
--> persistent one-goal-at-a-time ROS action server
--> fresh reference-state validation
--> plan-only action round-trip
--> one physical action-server execution
+absolute target -> MoveIt/JTC single-target execution
+persistent one-goal-at-a-time MoveIt action server
+hybrid streaming impedance controller build/tests/plugin loading
+zero-target hybrid activation
+single-target hybrid execution
+two fresh-state-anchored target replacements at 15 Hz
+static J1 equilibrium characterization over 5--30 mrad commands
 ```
 
-Not yet validated:
+Next:
 
 ```text
-SAPS client integration
-one real pi0.5/DROID-derived physical action
-multi-action execution
-15 Hz-compatible realization
-recovery/resumption
+precise target receipt/application and controller-period timing instrumentation
+prerecorded eight-action DROID sequence at 15 Hz
+live π0.5 multi-action execution
+SAPS arbitration / recovery / resumption integration
 ```

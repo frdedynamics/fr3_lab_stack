@@ -1,0 +1,31 @@
+controller_manager:
+  ros__parameters:
+    fr3_streaming_joint_impedance_controller:
+      type: fr3_lab_stack/StreamingJointImpedanceController
+
+fr3_streaming_joint_impedance_controller:
+  ros__parameters:
+    type: fr3_lab_stack/StreamingJointImpedanceController
+
+    robot_type: fr3
+    arm_prefix: ""
+
+    # Fixed joint-space component from the Polymetis Franka hardware config.
+    k_gains: [40.0, 30.0, 50.0, 25.0, 35.0, 25.0, 10.0]
+    d_gains: [4.0, 6.0, 5.0, 5.0, 3.0, 2.0, 1.0]
+
+    # C0-B: reproduce Polymetis HybridJointImpedanceControl:
+    #   Kp(q) = J^T Kx J + Kq
+    #   Kd(q) = J^T Kxd J + Kqd
+    # plus Coriolis feedforward (no gravity feedforward).
+    hybrid_impedance_enabled: true
+    cartesian_k_gains: [750.0, 750.0, 750.0, 15.0, 15.0, 15.0]
+    cartesian_d_gains: [37.0, 37.0, 37.0, 2.0, 2.0, 2.0]
+
+    # Incoming JointState.header.stamp must be recent. Once accepted, the
+    # latest target is held indefinitely, preserving the Polymetis-style
+    # hold-last-target behavior.
+    target_max_age_s: 0.25
+    target_future_tolerance_s: 0.05
+
+    telemetry_rate_hz: 100.0

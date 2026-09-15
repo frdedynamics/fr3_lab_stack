@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<library path="fr3_lab_stack_controllers">
+  <class
+    name="fr3_lab_stack/StreamingJointImpedanceController"
+    type="fr3_lab_stack::StreamingJointImpedanceController"
+    base_class_type="controller_interface::ControllerInterface">
+    <description>
+      Policy-agnostic FR3 streaming joint impedance controller. Activation holds the measured pose;
+      valid externally stamped absolute joint targets replace the desired pose and the latest target
+      is held until another valid target arrives.
+    </description>
+  </class>
+</library>

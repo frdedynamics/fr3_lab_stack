@@ -1,6 +1,6 @@
 # FR3 Lab Stack
 
-ROS 2 bringup and validation utilities for the HVL FR3 lab setup. The package currently provides reproducible dual-RealSense RGB bringup and an RViz configuration that shows both camera streams alongside the existing Franka MoveIt visualization.
+ROS 2 bringup, validation, and robot-side execution utilities for the HVL FR3 lab setup. The package provides reproducible dual-RealSense RGB bringup and RViz integration, together with validated FR3 joint-target execution paths used during learned-policy deployment.
 
 ## Tested environment
 
@@ -93,6 +93,17 @@ ros2 run igd_fr3_control spacemouse_twiststamped_publisher \
 ```
 
 See [`docs/commissioning.md`](docs/commissioning.md) for the integrated acceptance procedure.
+
+## Learned-policy joint-target execution
+
+Two robot-side target realizations are retained:
+
+- **MoveIt + `fr3_arm_controller`** remains the conservative commissioning, reset, and single-target baseline. It executes targets reliably but is too slow for the DROID/π0.5 15 Hz control period: a real π0.5-derived action produced a **1.105 s** planned trajectory and **1.603 s** request-to-result time, compared with **66.7 ms** per DROID action.
+- **Streaming hybrid impedance control** is the 15 Hz candidate. A persistent 1 kHz effort controller accepts absolute seven-joint equilibrium targets and allows the policy layer to replace them from fresh measured state without trajectory generation or stop-to-stop execution.
+
+Commissioning tests accepted two fresh-state-anchored targets **66.807 ms** apart (0.141 ms later than the nominal 15 Hz period), with exact desired-target replacement. At one controlled J1 configuration, +5 mrad and +30 mrad static tests left approximately **2.1 mrad** steady equilibrium error. The state telemetry is currently 100 Hz; observed target ages of roughly 7--11 ms therefore do **not** constitute a precise callback-to-control-loop latency measurement. Higher-resolution receipt/application and controller-period timing instrumentation remains pending.
+
+See [`docs/joint_target_execution.md`](docs/joint_target_execution.md) for the execution architecture and validation record.
 
 ## Validation status
 

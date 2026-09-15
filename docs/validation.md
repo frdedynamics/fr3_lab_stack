@@ -1,8 +1,8 @@
-# Validation record — 2026-09-08
+# Validation record
 
-## Current status
+## Integrated camera/teleoperation status — 2026-09-08
 
-**Overall: PARTIAL / INCOMPLETE.**
+**PARTIAL / INCOMPLETE.**
 
 Software validation passed. Dual-camera operation was stable during the latest **525.137 s** integrated observation. The required **15 uninterrupted minutes** of full physical acceptance have not yet been completed.
 
@@ -50,6 +50,26 @@ After the monitored interval, the operator used MoveIt planning to move the arm 
 This supports interpretation of the event as **expected singularity protection**, not a persistent Servo, controller, Franka communication, or SpaceMouse failure. The recovery was an operator observation after the monitored interval and was not captured by the validation observer.
 
 A future acceptance run should remain in a comfortable workspace. If a singularity halt occurs, use the documented MoveIt recovery procedure and restart the uninterrupted 15-minute observation window.
+
+## Learned-policy target execution — 2026-09-15
+
+The conservative MoveIt/trajectory-controller path was physically validated but rejected as the policy-rate realization because it cannot satisfy the 15 Hz DROID timing requirement. A real π0.5-derived action produced a **1.1048 s** planned trajectory and **1.6032 s** request-to-result time versus a **66.7 ms** action period.
+
+A persistent hybrid impedance controller was then commissioned for absolute equilibrium-target replacement. Key results:
+
+| Check | Result |
+| --- | ---: |
+| Zero-target maximum activation drift | **2.90 mrad** |
+| Controlled +5 mrad J1 steady residual | **2.06 mrad** |
+| Controlled +30 mrad J1 steady residual | **2.07 mrad** |
+| Two-target publisher interval | **66.807 ms** |
+| Error from nominal 15 Hz period | **+0.141 ms** |
+| Fresh-state anchoring of second target | **5.000 mrad** |
+| Desired-target mismatch after application | **0** |
+
+The 15 Hz test establishes functional target replacement, not precise end-to-end target-application latency. State telemetry is currently 100 Hz, so observed target ages of roughly 7--11 ms are too coarsely sampled for a callback-to-control-loop latency claim. Higher-resolution receipt/application and controller-period timing instrumentation is the next validation item before the prerecorded eight-action DROID sequence.
+
+See [`joint_target_execution.md`](joint_target_execution.md) for the controller architecture and interpretation.
 
 ## USB topology
 
