@@ -1,0 +1,94 @@
+{
+  "verified": true,
+  "sequences": [
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21
+  ],
+  "cycle_range": [
+    456749,
+    462748
+  ],
+  "timing": {
+    "t0_t1": {
+      "count": 20,
+      "mean_ns": 198190.1,
+      "median_ns": 183107.0,
+      "p95_ns": 288600,
+      "p99_ns": 299280,
+      "minimum_ns": 128651,
+      "maximum_ns": 299280
+    },
+    "t1_t2": {
+      "count": 20,
+      "mean_ns": 27917.3,
+      "median_ns": 26665.0,
+      "p95_ns": 42690,
+      "p99_ns": 46937,
+      "minimum_ns": 18214,
+      "maximum_ns": 46937
+    },
+    "t2_t3": {
+      "count": 20,
+      "mean_ns": 129659.55,
+      "median_ns": 127428.0,
+      "p95_ns": 167965,
+      "p99_ns": 221374,
+      "minimum_ns": 87574,
+      "maximum_ns": 221374
+    },
+    "t3_t4": {
+      "count": 20,
+      "mean_ns": 496133.45,
+      "median_ns": 466036.5,
+      "p95_ns": 909652,
+      "p99_ns": 957371,
+      "minimum_ns": 43091,
+      "maximum_ns": 957371
+    },
+    "t0_t4": {
+      "count": 20,
+      "mean_ns": 851900.4,
+      "median_ns": 841779.5,
+      "p95_ns": 1218990,
+      "p99_ns": 1448620,
+      "minimum_ns": 339495,
+      "maximum_ns": 1448620
+    }
+  },
+  "periods": {
+    "count": 6000,
+    "mean_ns": 999997.2675,
+    "median_ns": 999384.0,
+    "p95_ns": 1081312,
+    "p99_ns": 1104866,
+    "minimum_ns": 826325,
+    "maximum_ns": 1183844
+  },
+  "actual_t0_spacing": {
+    "count": 19,
+    "mean_ns": 100296948.73684211,
+    "median_ns": 100295525,
+    "p95_ns": 100368110,
+    "p99_ns": 100368110,
+    "minimum_ns": 100177053,
+    "maximum_ns": 100368110
+  }
+}

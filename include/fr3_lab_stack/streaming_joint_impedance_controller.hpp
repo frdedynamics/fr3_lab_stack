@@ -14,6 +14,8 @@
 #include <realtime_tools/realtime_publisher.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
+#include <std_msgs/msg/string.hpp>
+#include "fr3_lab_stack/timing_evidence.hpp"
 
 #include "fr3_lab_stack/streaming_joint_impedance_core.hpp"
 
@@ -38,10 +40,8 @@ class StreamingJointImpedanceController : public controller_interface::Controlle
   CallbackReturn on_cleanup(const rclcpp_lifecycle::State& previous_state) override;
 
  private:
-  struct TargetCommand {
+  struct TargetCommand : timing::TargetTiming {
     Vector7 q{};
-    std::int64_t stamp_ns{0};
-    std::uint64_t sequence{0};
     bool external{false};
   };
 
@@ -55,6 +55,17 @@ class StreamingJointImpedanceController : public controller_interface::Controlle
                          const Vector7& q,
                          const Vector7& dq,
                          const StreamingJointImpedanceCore::Output& output);
+
+  void drain_evidence();
+  void publish_evidence(const std::string& fields);
+  timing::Ring<8192> evidence_;
+  std::uint64_t cycle_{0};  // RT-owned, lifetime cumulative
+  std::atomic<std::int64_t> activation_{0};
+  std::string provenance_;
+  std::uint64_t timing_publication_errors_{0};
+  std::uint64_t evidence_id_{0};  // non-RT default callback group
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr timing_publisher_;
+  rclcpp::TimerBase::SharedPtr timing_timer_;
 
   std::string robot_type_{"fr3"};
   std::string arm_prefix_;

@@ -5,6 +5,12 @@
 import json
 import math
 import time
+import uuid
+
+from .timing_evidence import clock_provenance
+
+PROVENANCE = clock_provenance()
+FORWARDER_INSTANCE = str(uuid.uuid4())
 from collections import Counter
 
 import rclpy
@@ -114,7 +120,8 @@ class StreamingJointTargetForwarder(Node):
         receipt_mono_ns = time.monotonic_ns()
         receipt_ros_ns = self.get_clock().now().nanoseconds
         self.counts['received'] += 1
-        record = dict(source_stamp_sec=msg.header.stamp.sec,
+        record = dict(schema=1, forwarder_instance=FORWARDER_INSTANCE,
+                      **PROVENANCE, source_frame_id=msg.header.frame_id, source_stamp_sec=msg.header.stamp.sec,
                       source_stamp_nanosec=msg.header.stamp.nanosec,
                       server_receipt_ros_ns=receipt_ros_ns,
                       server_receipt_monotonic_ns=receipt_mono_ns,

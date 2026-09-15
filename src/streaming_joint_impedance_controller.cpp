@@ -4,6 +4,10 @@
 #include <cmath>
 #include <limits>
 #include <utility>
+#include <fstream>
+#include <iomanip>
+#include <sstream>
+#include <unistd.h>
 
 #include <franka/model.h>
 #include <pluginlib/class_list_macros.hpp>
@@ -11,6 +15,21 @@
 #include "fr3_lab_stack/hybrid_impedance_math.hpp"
 
 namespace fr3_lab_stack {
+namespace {
+// Non-RT JSON string encoding, including arbitrary source frame IDs.
+std::string json_string(const std::string& value) {
+  std::ostringstream out;
+  out << '"';
+  for (const unsigned char ch : value) {
+    if (ch == '"' || ch == '\\') out << '\\' << ch;
+    else if (ch < 0x20) out << "\\u" << std::hex << std::setw(4) << std::setfill('0') << unsigned(ch);
+    else out << ch;
+  }
+  out << '"';
+  return out.str();
+}
+}  // namespace
+
 
 controller_interface::InterfaceConfiguration
 StreamingJointImpedanceController::command_interface_configuration() const {
@@ -184,6 +203,24 @@ StreamingJointImpedanceController::on_configure(
               std_msgs::msg::Float64MultiArray>>(publisher);
   state_publisher_->msg_.data.assign(kTelemetryWidth, 0.0);
 
+  char hostname[256]{};
+  gethostname(hostname, sizeof(hostname) - 1);
+  std::string boot;
+  std::ifstream("/proc/sys/kernel/random/boot_id") >> boot;
+  char time_namespace[256]{};
+  const auto length = readlink("/proc/self/ns/time", time_namespace, sizeof(time_namespace) - 1);
+  if (length > 0) time_namespace[length] = '\0';
+  std::ostringstream provenance;
+  provenance << "\"clock\":\"CLOCK_MONOTONIC\",\"hostname\":" << json_string(hostname)
+             << ",\"boot_id\":" << json_string(boot)
+             << ",\"time_namespace\":" << json_string(time_namespace)
+             << ",\"instance\":\"" << getpid() << "-" << timing::monotonic_ns() << "\"";
+  provenance_ = provenance.str();
+  timing_publisher_ = get_node()->create_publisher<std_msgs::msg::String>(
+      "~/timing", rclcpp::QoS(100).reliable());
+  timing_timer_ = get_node()->create_wall_timer(
+      std::chrono::milliseconds(20), [this]() { drain_evidence(); });
+
   accept_commands_.store(false);
   next_sequence_.store(0);
   last_applied_sequence_ = 0;
@@ -268,6 +305,7 @@ StreamingJointImpedanceController::on_activate(
     }
   }
 
+  activation_.store(timing::monotonic_ns());
   TargetCommand initial_hold;
   initial_hold.q = q;
   initial_hold.stamp_ns =
@@ -324,6 +362,9 @@ StreamingJointImpedanceController::on_cleanup(
     const rclcpp_lifecycle::State& /*previous_state*/) {
   accept_commands_.store(false);
   core_.deactivate();
+  timing_timer_.reset();
+  drain_evidence();
+  timing_publisher_.reset();
   target_subscriber_.reset();
   state_publisher_.reset();
   franka_robot_model_.reset();
@@ -365,10 +406,24 @@ bool StreamingJointImpedanceController::validate_joint_names(
 
 void StreamingJointImpedanceController::target_callback(
     const sensor_msgs::msg::JointState::SharedPtr msg) {
+  const auto t3 = timing::monotonic_ns();
+  const auto activation = activation_.load();
+  const auto receipt_ros_ns = get_node()->now().nanoseconds();
+  const auto emit = [&](const char* outcome, std::uint64_t sequence = 0) {
+    std::ostringstream fields;
+    fields << "\"event\":\"callback\",\"activation\":" << activation
+           << ",\"t3_ns\":" << t3 << ",\"receipt_ros_ns\":" << receipt_ros_ns
+           << ",\"source_stamp_ns\":"
+           << (msg ? static_cast<std::int64_t>(msg->header.stamp.sec) * 1000000000LL + msg->header.stamp.nanosec : 0)
+           << ",\"source_frame_id\":" << json_string(msg ? msg->header.frame_id : std::string{})
+           << ",\"sequence\":" << sequence << ",\"outcome\":" << json_string(outcome);
+    publish_evidence(fields.str());
+  };
   if (!accept_commands_.load()) {
     RCLCPP_WARN(
         get_node()->get_logger(),
         "Ignoring joint target while controller is inactive");
+    emit("inactive");
     return;
   }
 
@@ -379,6 +434,7 @@ void StreamingJointImpedanceController::target_callback(
         get_node()->get_logger(),
         "Rejected joint target: expected exactly seven ordered "
         "names and seven positions");
+    emit("joint_shape");
     return;
   }
 
@@ -388,6 +444,7 @@ void StreamingJointImpedanceController::target_callback(
       RCLCPP_WARN(
           get_node()->get_logger(),
           "Rejected joint target: non-finite position");
+      emit("nonfinite_position");
       return;
     }
     command.q[i] = msg->position[i];
@@ -400,6 +457,7 @@ void StreamingJointImpedanceController::target_callback(
     RCLCPP_WARN(
         get_node()->get_logger(),
         "Rejected joint target: header stamp is required");
+    emit("invalid_stamp");
     return;
   }
 
@@ -415,20 +473,34 @@ void StreamingJointImpedanceController::target_callback(
         age_s,
         target_future_tolerance_s_,
         target_max_age_s_);
+    emit("stamp_age");
     return;
   }
 
+  command.callback_ns = t3;
+  command.activation = activation;
   command.stamp_ns = stamp.nanoseconds();
   command.sequence =
       next_sequence_.fetch_add(1) + 1;
   command.external = true;
   target_buffer_.writeFromNonRT(command);
+  emit("accepted", command.sequence);
 }
 
 controller_interface::return_type
 StreamingJointImpedanceController::update(
     const rclcpp::Time& time,
-    const rclcpp::Duration& /*period*/) {
+    const rclcpp::Duration& period) {
+  timing::Sample evidence;
+  evidence.cycle = ++cycle_;
+  evidence.activation = activation_.load();
+  evidence.period_ns = period.nanoseconds();
+  // Enqueue on every exit, including update errors. No heap work or blocking.
+  struct Capture {
+    timing::Ring<8192>& ring;
+    timing::Sample& sample;
+    ~Capture() { ring.push(sample); }
+  } capture{evidence_, evidence};
   Vector7 q{};
   Vector7 dq{};
   if (!read_joint_state(&q, &dq)) {
@@ -439,11 +511,10 @@ StreamingJointImpedanceController::update(
       target_buffer_.readFromRT();
   if (target != nullptr &&
       target->sequence > last_applied_sequence_) {
-    if (!core_.set_target(target->q)) {
+    if (!timing::install(core_, *target, last_applied_sequence_, evidence)) {
       return controller_interface::return_type::ERROR;
     }
 
-    last_applied_sequence_ = target->sequence;
     if (target->external) {
       last_external_target_stamp_ns_ =
           target->stamp_ns;
@@ -507,6 +578,55 @@ StreamingJointImpedanceController::update(
 
   publish_telemetry(time, q, dq, output);
   return controller_interface::return_type::OK;
+}
+
+void StreamingJointImpedanceController::publish_evidence(const std::string& fields) {
+  if (!timing_publisher_) return;
+  std_msgs::msg::String msg;
+  msg.data = "{\"schema\":1," + provenance_ + ",\"evidence_id\":" +
+      std::to_string(++evidence_id_) + ",\"publication_errors\":" +
+      std::to_string(timing_publication_errors_) + "," + fields + "}";
+  try {
+    timing_publisher_->publish(msg);
+  } catch (const std::exception&) {
+    // Evidence publication failure must not escape into the command callback.
+    // The next successful record exposes both the ID gap and cumulative count.
+    ++timing_publication_errors_;
+  }
+}
+
+void StreamingJointImpedanceController::drain_evidence() {
+  std::ostringstream fields;
+  fields << std::setprecision(17)
+         << "\"event\":\"samples\",\"activation\":" << activation_.load()
+         << ",\"samples\":[";
+  timing::Sample sample;
+  bool first = true;
+  // Bound non-RT work too; arrivals during draining cannot extend it indefinitely.
+  for (std::size_t i = 0; i < 8192 && evidence_.pop(sample); ++i) {
+    if (!first) fields << ',';
+    first = false;
+    fields << "{\"cycle\":" << sample.cycle
+           << ",\"activation\":" << sample.activation
+           << ",\"period_ns\":" << sample.period_ns;
+    if (sample.applied) {
+      fields << ",\"application\":{\"activation\":" << sample.activation
+             << ",\"callback_activation\":" << sample.target.activation
+             << ",\"sequence\":" << sample.target.sequence
+             << ",\"source_stamp_ns\":" << sample.target.stamp_ns
+             << ",\"t3_ns\":" << sample.target.callback_ns
+             << ",\"t4_ns\":" << sample.application_ns << ",\"q_desired\":[";
+      for (std::size_t j = 0; j < 7; ++j) {
+        if (j) fields << ',';
+        fields << sample.q_desired[j];
+      }
+      fields << "]}";
+    }
+    fields << '}';
+  }
+  fields << "],\"dropped_period_samples\":" << evidence_.dropped()
+         << ",\"dropped_application_records\":" << evidence_.dropped_applications();
+  publish_evidence(fields.str());
 }
 
 void StreamingJointImpedanceController::publish_telemetry(

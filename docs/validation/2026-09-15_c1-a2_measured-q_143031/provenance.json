@@ -1,0 +1,93 @@
+{
+  "base_commit": "67a99139de545f95038625d7dbe2be68d2630bec",
+  "implementation_diff": "implementation.patch",
+  "implementation_sha256": {
+    "CMakeLists.txt": "e4b0979cb196c40b49255742c23447e3b789a1209085dc03062cba76121bf931",
+    "fr3_lab_stack_runtime/streaming_joint_target_forwarder.py": "17eb11f13630e7ac5ef3feb1d842fdd1abe720489266a6207b140df590a5b5bb",
+    "include/fr3_lab_stack/streaming_joint_impedance_controller.hpp": "7471ad6dc843d0e084f342a1fd482956e9fcada8d4cd5469ab8ce25339537ddb",
+    "src/streaming_joint_impedance_controller.cpp": "385d927c54e1a26e65f01dad9c3ce83fe0e1308dc1656cfe705011b545f3ab05",
+    "fr3_lab_stack_runtime/timing_evidence.py": "3007746961a73eb0880979b89ce3072a0913a4221f7bd7064ab7aa880a77ab19",
+    "fr3_lab_stack_runtime/streaming_timing_collector.py": "697f2dbbeb3cdaf4f2f0e83feaaa3779e09cc18d3e49163397dbede425dd6d75",
+    "include/fr3_lab_stack/timing_evidence.hpp": "3eb4b6b568b0905419827b4e311d5d9d60c40584cdb2a92c272034b75087a44a",
+    "scripts/fr3_streaming_timing_collector.py": "93928238b34e97eeca6e3e5982b1d632f50555925522edabac4d0d5955675dd1",
+    "test/test_timing_evidence.cpp": "dcdc6c5ec1ea6ba57730563ce88b72eeed4dce706df9743b485c74ddd571892e",
+    "test/test_timing_evidence.py": "4a4da8737c74540b74d76f9a65e8f9570d4666f9583fc968eb45dd4a29d0c170",
+    "config/streaming_joint_impedance_controller.yaml": "a80d7efd017d5993306938a68b5e97fd4a39de01ce2d7d0524fa9f3ce5a1f6df",
+    "config/streaming_joint_target_forwarder.yaml": "2ce4c1879e0633fffc8f557be704e0c8e69f9c4ec7e419285650f23b0ae175e5"
+  },
+  "installed_artifacts_at_archival": {
+    "install/fr3_lab_stack/lib/libfr3_lab_stack_controllers.so": {
+      "sha256": "d5317246b16ab01e25155b759ed4a76ab3c1f0bce32ba2f4be82737c85a12556",
+      "mtime_utc": "2026-09-15T10:29:53+00:00"
+    },
+    "install/fr3_lab_stack/lib/python3.12/site-packages/fr3_lab_stack_runtime/__init__.py": {
+      "sha256": "685e6bbbf5df6bf13b8c1d0bd4982c6a13192d36b6ba2db9a00b81963fbd5803",
+      "mtime_utc": "2026-09-11T10:40:28+00:00"
+    },
+    "install/fr3_lab_stack/lib/python3.12/site-packages/fr3_lab_stack_runtime/joint_target.py": {
+      "sha256": "e5076ff06248047913ded11a3baf7f9545adaf3501f25bc42e04350d01b9c035",
+      "mtime_utc": "2026-09-14T07:56:01+00:00"
+    },
+    "install/fr3_lab_stack/lib/python3.12/site-packages/fr3_lab_stack_runtime/joint_target_server.py": {
+      "sha256": "96388e1956dd57b8e54f213677d162d80187abc867d490356b73e68a049a0b3c",
+      "mtime_utc": "2026-09-14T07:56:36+00:00"
+    },
+    "install/fr3_lab_stack/lib/python3.12/site-packages/fr3_lab_stack_runtime/streaming_joint_target_forwarder.py": {
+      "sha256": "17eb11f13630e7ac5ef3feb1d842fdd1abe720489266a6207b140df590a5b5bb",
+      "mtime_utc": "2026-09-15T10:25:28+00:00"
+    },
+    "install/fr3_lab_stack/lib/python3.12/site-packages/fr3_lab_stack_runtime/streaming_timing_collector.py": {
+      "sha256": "697f2dbbeb3cdaf4f2f0e83feaaa3779e09cc18d3e49163397dbede425dd6d75",
+      "mtime_utc": "2026-09-15T10:28:51+00:00"
+    },
+    "install/fr3_lab_stack/lib/python3.12/site-packages/fr3_lab_stack_runtime/timing_evidence.py": {
+      "sha256": "3007746961a73eb0880979b89ce3072a0913a4221f7bd7064ab7aa880a77ab19",
+      "mtime_utc": "2026-09-15T10:29:30+00:00"
+    }
+  },
+  "provenance_limit": "Source and installed artifacts hashed at archival, not attested by the running process at collection. Operator validated this implementation; controller process no longer present.",
+  "runtime": {
+    "collector": {
+      "kind": "metadata",
+      "run": "5dc8b3c3-a130-4ecd-b945-5d9bdf4931c8",
+      "clock": "CLOCK_MONOTONIC",
+      "hostname": "hvl-robotics2404",
+      "boot_id": "81b6e542-1538-4b24-8f5b-1783bb53c33e",
+      "time_namespace": "time:[4026531834]",
+      "python_clock_implementation": "clock_gettime(CLOCK_MONOTONIC)",
+      "clock_verified": true,
+      "count": 20,
+      "interval_s": 0.1,
+      "target_mode": "fresh measured q from 39-field state",
+      "period_nominal_ns": 1000000,
+      "long_period_thresholds_ns": [
+        1500000,
+        2000000
+      ]
+    },
+    "forwarder_parameters": {
+      "target_max_age_s": 0.25,
+      "target_future_tolerance_s": 0.05,
+      "controller_poll_interval_s": 0.1,
+      "controller_evidence_expiry_s": 0.3
+    },
+    "controller_configuration": "streaming_joint_impedance_controller.yaml",
+    "controller_configuration_basis": "Operator confirmed checked-in YAML without overrides; no runtime parameter dump was recorded.",
+    "controller_instance": "23851-9983292980857",
+    "activation": 9989306644906,
+    "forwarder_instance": "bd22a820-6e30-41aa-9d30-de31a88b6191",
+    "ros_distribution": "jazzy",
+    "clock": {
+      "clock": "CLOCK_MONOTONIC",
+      "hostname": "hvl-robotics2404",
+      "boot_id": "81b6e542-1538-4b24-8f5b-1783bb53c33e",
+      "time_namespace": "time:[4026531834]",
+      "python_clock_implementation": "clock_gettime(CLOCK_MONOTONIC)",
+      "clock_verified": true
+    }
+  },
+  "original_files": [
+    "/tmp/c1-a2-20-20260915T143031.jsonl",
+    "/tmp/c1-a2-20-20260915T143031-summary.json"
+  ]
+}

@@ -54,9 +54,18 @@ install(PROGRAMS scripts/fr3_joint_target_server.py DESTINATION lib/${PROJECT_NA
 install(PROGRAMS scripts/fr3_streaming_joint_target_forwarder.py DESTINATION lib/${PROJECT_NAME}
   RENAME fr3_streaming_joint_target_forwarder)
 
+install(PROGRAMS scripts/fr3_streaming_timing_collector.py DESTINATION lib/${PROJECT_NAME}
+  RENAME fr3_streaming_timing_collector)
+
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
   find_package(ament_cmake_pytest REQUIRED)
+
+  ament_add_gtest(timing_evidence test/test_timing_evidence.cpp)
+  target_compile_features(timing_evidence PRIVATE cxx_std_17)
+  target_include_directories(timing_evidence PRIVATE include)
+  ament_target_dependencies(timing_evidence realtime_tools)
+  ament_add_pytest_test(timing_analysis test/test_timing_evidence.py)
 
   ament_add_gtest(streaming_joint_impedance_core
     test/test_streaming_joint_impedance_core.cpp

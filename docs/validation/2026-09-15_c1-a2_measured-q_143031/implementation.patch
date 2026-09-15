@@ -1,0 +1,869 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index c67475c..5f69b94 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -54,10 +54,19 @@ install(PROGRAMS scripts/fr3_joint_target_server.py DESTINATION lib/${PROJECT_NA
+ install(PROGRAMS scripts/fr3_streaming_joint_target_forwarder.py DESTINATION lib/${PROJECT_NAME}
+   RENAME fr3_streaming_joint_target_forwarder)
+ 
++install(PROGRAMS scripts/fr3_streaming_timing_collector.py DESTINATION lib/${PROJECT_NAME}
++  RENAME fr3_streaming_timing_collector)
++
+ if(BUILD_TESTING)
+   find_package(ament_cmake_gtest REQUIRED)
+   find_package(ament_cmake_pytest REQUIRED)
+ 
++  ament_add_gtest(timing_evidence test/test_timing_evidence.cpp)
++  target_compile_features(timing_evidence PRIVATE cxx_std_17)
++  target_include_directories(timing_evidence PRIVATE include)
++  ament_target_dependencies(timing_evidence realtime_tools)
++  ament_add_pytest_test(timing_analysis test/test_timing_evidence.py)
++
+   ament_add_gtest(streaming_joint_impedance_core
+     test/test_streaming_joint_impedance_core.cpp
+   )
+diff --git a/fr3_lab_stack_runtime/streaming_joint_target_forwarder.py b/fr3_lab_stack_runtime/streaming_joint_target_forwarder.py
+index 30114f4..041d2ce 100644
+--- a/fr3_lab_stack_runtime/streaming_joint_target_forwarder.py
++++ b/fr3_lab_stack_runtime/streaming_joint_target_forwarder.py
+@@ -5,6 +5,12 @@
+ import json
+ import math
+ import time
++import uuid
++
++from .timing_evidence import clock_provenance
++
++PROVENANCE = clock_provenance()
++FORWARDER_INSTANCE = str(uuid.uuid4())
+ from collections import Counter
+ 
+ import rclpy
+@@ -114,7 +120,8 @@ class StreamingJointTargetForwarder(Node):
+         receipt_mono_ns = time.monotonic_ns()
+         receipt_ros_ns = self.get_clock().now().nanoseconds
+         self.counts['received'] += 1
+-        record = dict(source_stamp_sec=msg.header.stamp.sec,
++        record = dict(schema=1, forwarder_instance=FORWARDER_INSTANCE,
++                      **PROVENANCE, source_frame_id=msg.header.frame_id, source_stamp_sec=msg.header.stamp.sec,
+                       source_stamp_nanosec=msg.header.stamp.nanosec,
+                       server_receipt_ros_ns=receipt_ros_ns,
+                       server_receipt_monotonic_ns=receipt_mono_ns,
+diff --git a/include/fr3_lab_stack/streaming_joint_impedance_controller.hpp b/include/fr3_lab_stack/streaming_joint_impedance_controller.hpp
+index 553c615..4744c96 100644
+--- a/include/fr3_lab_stack/streaming_joint_impedance_controller.hpp
++++ b/include/fr3_lab_stack/streaming_joint_impedance_controller.hpp
+@@ -14,6 +14,8 @@
+ #include <realtime_tools/realtime_publisher.hpp>
+ #include <sensor_msgs/msg/joint_state.hpp>
+ #include <std_msgs/msg/float64_multi_array.hpp>
++#include <std_msgs/msg/string.hpp>
++#include "fr3_lab_stack/timing_evidence.hpp"
+ 
+ #include "fr3_lab_stack/streaming_joint_impedance_core.hpp"
+ 
+@@ -38,10 +40,8 @@ class StreamingJointImpedanceController : public controller_interface::Controlle
+   CallbackReturn on_cleanup(const rclcpp_lifecycle::State& previous_state) override;
+ 
+  private:
+-  struct TargetCommand {
++  struct TargetCommand : timing::TargetTiming {
+     Vector7 q{};
+-    std::int64_t stamp_ns{0};
+-    std::uint64_t sequence{0};
+     bool external{false};
+   };
+ 
+@@ -56,6 +56,17 @@ class StreamingJointImpedanceController : public controller_interface::Controlle
+                          const Vector7& dq,
+                          const StreamingJointImpedanceCore::Output& output);
+ 
++  void drain_evidence();
++  void publish_evidence(const std::string& fields);
++  timing::Ring<8192> evidence_;
++  std::uint64_t cycle_{0};  // RT-owned, lifetime cumulative
++  std::atomic<std::int64_t> activation_{0};
++  std::string provenance_;
++  std::uint64_t timing_publication_errors_{0};
++  std::uint64_t evidence_id_{0};  // non-RT default callback group
++  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr timing_publisher_;
++  rclcpp::TimerBase::SharedPtr timing_timer_;
++
+   std::string robot_type_{"fr3"};
+   std::string arm_prefix_;
+   std::string arm_id_{"fr3"};
+diff --git a/src/streaming_joint_impedance_controller.cpp b/src/streaming_joint_impedance_controller.cpp
+index 14aa050..e908e5d 100644
+--- a/src/streaming_joint_impedance_controller.cpp
++++ b/src/streaming_joint_impedance_controller.cpp
+@@ -4,6 +4,10 @@
+ #include <cmath>
+ #include <limits>
+ #include <utility>
++#include <fstream>
++#include <iomanip>
++#include <sstream>
++#include <unistd.h>
+ 
+ #include <franka/model.h>
+ #include <pluginlib/class_list_macros.hpp>
+@@ -11,6 +15,21 @@
+ #include "fr3_lab_stack/hybrid_impedance_math.hpp"
+ 
+ namespace fr3_lab_stack {
++namespace {
++// Non-RT JSON string encoding, including arbitrary source frame IDs.
++std::string json_string(const std::string& value) {
++  std::ostringstream out;
++  out << '"';
++  for (const unsigned char ch : value) {
++    if (ch == '"' || ch == '\\') out << '\\' << ch;
++    else if (ch < 0x20) out << "\\u" << std::hex << std::setw(4) << std::setfill('0') << unsigned(ch);
++    else out << ch;
++  }
++  out << '"';
++  return out.str();
++}
++}  // namespace
++
+ 
+ controller_interface::InterfaceConfiguration
+ StreamingJointImpedanceController::command_interface_configuration() const {
+@@ -184,6 +203,24 @@ StreamingJointImpedanceController::on_configure(
+               std_msgs::msg::Float64MultiArray>>(publisher);
+   state_publisher_->msg_.data.assign(kTelemetryWidth, 0.0);
+ 
++  char hostname[256]{};
++  gethostname(hostname, sizeof(hostname) - 1);
++  std::string boot;
++  std::ifstream("/proc/sys/kernel/random/boot_id") >> boot;
++  char time_namespace[256]{};
++  const auto length = readlink("/proc/self/ns/time", time_namespace, sizeof(time_namespace) - 1);
++  if (length > 0) time_namespace[length] = '\0';
++  std::ostringstream provenance;
++  provenance << "\"clock\":\"CLOCK_MONOTONIC\",\"hostname\":" << json_string(hostname)
++             << ",\"boot_id\":" << json_string(boot)
++             << ",\"time_namespace\":" << json_string(time_namespace)
++             << ",\"instance\":\"" << getpid() << "-" << timing::monotonic_ns() << "\"";
++  provenance_ = provenance.str();
++  timing_publisher_ = get_node()->create_publisher<std_msgs::msg::String>(
++      "~/timing", rclcpp::QoS(100).reliable());
++  timing_timer_ = get_node()->create_wall_timer(
++      std::chrono::milliseconds(20), [this]() { drain_evidence(); });
++
+   accept_commands_.store(false);
+   next_sequence_.store(0);
+   last_applied_sequence_ = 0;
+@@ -268,6 +305,7 @@ StreamingJointImpedanceController::on_activate(
+     }
+   }
+ 
++  activation_.store(timing::monotonic_ns());
+   TargetCommand initial_hold;
+   initial_hold.q = q;
+   initial_hold.stamp_ns =
+@@ -324,6 +362,9 @@ StreamingJointImpedanceController::on_cleanup(
+     const rclcpp_lifecycle::State& /*previous_state*/) {
+   accept_commands_.store(false);
+   core_.deactivate();
++  timing_timer_.reset();
++  drain_evidence();
++  timing_publisher_.reset();
+   target_subscriber_.reset();
+   state_publisher_.reset();
+   franka_robot_model_.reset();
+@@ -365,10 +406,24 @@ bool StreamingJointImpedanceController::validate_joint_names(
+ 
+ void StreamingJointImpedanceController::target_callback(
+     const sensor_msgs::msg::JointState::SharedPtr msg) {
++  const auto t3 = timing::monotonic_ns();
++  const auto activation = activation_.load();
++  const auto receipt_ros_ns = get_node()->now().nanoseconds();
++  const auto emit = [&](const char* outcome, std::uint64_t sequence = 0) {
++    std::ostringstream fields;
++    fields << "\"event\":\"callback\",\"activation\":" << activation
++           << ",\"t3_ns\":" << t3 << ",\"receipt_ros_ns\":" << receipt_ros_ns
++           << ",\"source_stamp_ns\":"
++           << (msg ? static_cast<std::int64_t>(msg->header.stamp.sec) * 1000000000LL + msg->header.stamp.nanosec : 0)
++           << ",\"source_frame_id\":" << json_string(msg ? msg->header.frame_id : std::string{})
++           << ",\"sequence\":" << sequence << ",\"outcome\":" << json_string(outcome);
++    publish_evidence(fields.str());
++  };
+   if (!accept_commands_.load()) {
+     RCLCPP_WARN(
+         get_node()->get_logger(),
+         "Ignoring joint target while controller is inactive");
++    emit("inactive");
+     return;
+   }
+ 
+@@ -379,6 +434,7 @@ void StreamingJointImpedanceController::target_callback(
+         get_node()->get_logger(),
+         "Rejected joint target: expected exactly seven ordered "
+         "names and seven positions");
++    emit("joint_shape");
+     return;
+   }
+ 
+@@ -388,6 +444,7 @@ void StreamingJointImpedanceController::target_callback(
+       RCLCPP_WARN(
+           get_node()->get_logger(),
+           "Rejected joint target: non-finite position");
++      emit("nonfinite_position");
+       return;
+     }
+     command.q[i] = msg->position[i];
+@@ -400,6 +457,7 @@ void StreamingJointImpedanceController::target_callback(
+     RCLCPP_WARN(
+         get_node()->get_logger(),
+         "Rejected joint target: header stamp is required");
++    emit("invalid_stamp");
+     return;
+   }
+ 
+@@ -415,20 +473,34 @@ void StreamingJointImpedanceController::target_callback(
+         age_s,
+         target_future_tolerance_s_,
+         target_max_age_s_);
++    emit("stamp_age");
+     return;
+   }
+ 
++  command.callback_ns = t3;
++  command.activation = activation;
+   command.stamp_ns = stamp.nanoseconds();
+   command.sequence =
+       next_sequence_.fetch_add(1) + 1;
+   command.external = true;
+   target_buffer_.writeFromNonRT(command);
++  emit("accepted", command.sequence);
+ }
+ 
+ controller_interface::return_type
+ StreamingJointImpedanceController::update(
+     const rclcpp::Time& time,
+-    const rclcpp::Duration& /*period*/) {
++    const rclcpp::Duration& period) {
++  timing::Sample evidence;
++  evidence.cycle = ++cycle_;
++  evidence.activation = activation_.load();
++  evidence.period_ns = period.nanoseconds();
++  // Enqueue on every exit, including update errors. No heap work or blocking.
++  struct Capture {
++    timing::Ring<8192>& ring;
++    timing::Sample& sample;
++    ~Capture() { ring.push(sample); }
++  } capture{evidence_, evidence};
+   Vector7 q{};
+   Vector7 dq{};
+   if (!read_joint_state(&q, &dq)) {
+@@ -439,11 +511,10 @@ StreamingJointImpedanceController::update(
+       target_buffer_.readFromRT();
+   if (target != nullptr &&
+       target->sequence > last_applied_sequence_) {
+-    if (!core_.set_target(target->q)) {
++    if (!timing::install(core_, *target, last_applied_sequence_, evidence)) {
+       return controller_interface::return_type::ERROR;
+     }
+ 
+-    last_applied_sequence_ = target->sequence;
+     if (target->external) {
+       last_external_target_stamp_ns_ =
+           target->stamp_ns;
+@@ -509,6 +580,55 @@ StreamingJointImpedanceController::update(
+   return controller_interface::return_type::OK;
+ }
+ 
++void StreamingJointImpedanceController::publish_evidence(const std::string& fields) {
++  if (!timing_publisher_) return;
++  std_msgs::msg::String msg;
++  msg.data = "{\"schema\":1," + provenance_ + ",\"evidence_id\":" +
++      std::to_string(++evidence_id_) + ",\"publication_errors\":" +
++      std::to_string(timing_publication_errors_) + "," + fields + "}";
++  try {
++    timing_publisher_->publish(msg);
++  } catch (const std::exception&) {
++    // Evidence publication failure must not escape into the command callback.
++    // The next successful record exposes both the ID gap and cumulative count.
++    ++timing_publication_errors_;
++  }
++}
++
++void StreamingJointImpedanceController::drain_evidence() {
++  std::ostringstream fields;
++  fields << std::setprecision(17)
++         << "\"event\":\"samples\",\"activation\":" << activation_.load()
++         << ",\"samples\":[";
++  timing::Sample sample;
++  bool first = true;
++  // Bound non-RT work too; arrivals during draining cannot extend it indefinitely.
++  for (std::size_t i = 0; i < 8192 && evidence_.pop(sample); ++i) {
++    if (!first) fields << ',';
++    first = false;
++    fields << "{\"cycle\":" << sample.cycle
++           << ",\"activation\":" << sample.activation
++           << ",\"period_ns\":" << sample.period_ns;
++    if (sample.applied) {
++      fields << ",\"application\":{\"activation\":" << sample.activation
++             << ",\"callback_activation\":" << sample.target.activation
++             << ",\"sequence\":" << sample.target.sequence
++             << ",\"source_stamp_ns\":" << sample.target.stamp_ns
++             << ",\"t3_ns\":" << sample.target.callback_ns
++             << ",\"t4_ns\":" << sample.application_ns << ",\"q_desired\":[";
++      for (std::size_t j = 0; j < 7; ++j) {
++        if (j) fields << ',';
++        fields << sample.q_desired[j];
++      }
++      fields << "]}";
++    }
++    fields << '}';
++  }
++  fields << "],\"dropped_period_samples\":" << evidence_.dropped()
++         << ",\"dropped_application_records\":" << evidence_.dropped_applications();
++  publish_evidence(fields.str());
++}
++
+ void StreamingJointImpedanceController::publish_telemetry(
+     const rclcpp::Time& time,
+     const Vector7& q,
+diff --git a/fr3_lab_stack_runtime/timing_evidence.py b/fr3_lab_stack_runtime/timing_evidence.py
+new file mode 100644
+index 0000000..de2cfff
+--- /dev/null
++++ b/fr3_lab_stack_runtime/timing_evidence.py
+@@ -0,0 +1,142 @@
++"""C1-A2 clock provenance and offline evidence analysis (no ROS dependencies)."""
++import math
++import os
++import socket
++import statistics
++import time
++from pathlib import Path
++
++
++def clock_provenance():
++    # Verify monotonic_ns (also used by the forwarder admission gate) against
++    # the explicit POSIX clock used by the C++ controller. Linux same boot and
++    # time namespace is required; ROS time is never used for these intervals.
++    before = time.clock_gettime_ns(time.CLOCK_MONOTONIC)
++    value = time.monotonic_ns()
++    after = time.clock_gettime_ns(time.CLOCK_MONOTONIC)
++    if not before <= value <= after:
++        raise RuntimeError('Python monotonic_ns does not match CLOCK_MONOTONIC')
++    return dict(clock='CLOCK_MONOTONIC', hostname=socket.gethostname(),
++                boot_id=Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
++                time_namespace=os.readlink('/proc/self/ns/time'),
++                python_clock_implementation=time.get_clock_info('monotonic').implementation,
++                clock_verified=True)
++
++
++def same_clock(*records):
++    keys = ('clock', 'hostname', 'boot_id', 'time_namespace')
++    return all(all(r.get(k) and r.get(k) == records[0].get(k) for k in keys)
++               for r in records) and records[0].get('clock') == 'CLOCK_MONOTONIC'
++
++
++def period_statistics(values, thresholds=(1_500_000, 2_000_000)):
++    """Percentiles: nearest rank ceil(p*N), one-based; median averages middle pair."""
++    values = sorted(values)
++    result = dict(count=len(values), nominal_ns=1_000_000,
++                  thresholds_ns=list(thresholds),
++                  long_period_counts={str(t): sum(v > t for v in values) for t in thresholds},
++                  percentile_method='nearest rank ceil(p*N), one-based')
++    if not values:
++        return dict(result, mean_ns=None, median_ns=None, p95_ns=None, p99_ns=None,
++                    maximum_ns=None, mean_deviation_ns=None, maximum_absolute_deviation_ns=None)
++    mean = statistics.mean(values)
++    return dict(result, mean_ns=mean, median_ns=statistics.median(values),
++                p95_ns=values[math.ceil(.95 * len(values)) - 1],
++                p99_ns=values[math.ceil(.99 * len(values)) - 1], maximum_ns=values[-1],
++                mean_deviation_ns=mean - 1_000_000,
++                maximum_absolute_deviation_ns=max(abs(v - 1_000_000) for v in values))
++
++
++def analyze(records):
++    """Conservative joins: ambiguous stamps and incomplete evidence stay unresolved."""
++    sent = [r for r in records if r['kind'] == 'sent']
++    if len({r['run'] for r in sent}) > 1:
++        raise ValueError('analyze one run at a time')
++    stamps = [r['source_stamp_ns'] for r in sent]
++    if len(stamps) != len(set(stamps)):
++        raise ValueError('source stamps must be unique within the run')
++    forwards = [r['data'] for r in records if r['kind'] == 'forwarder']
++    controller = [r['data'] for r in records if r['kind'] == 'controller']
++    callbacks = [r for r in controller if r['event'] == 'callback']
++    batches = [r for r in controller if r['event'] == 'samples']
++    applications = [dict(s['application'], **{k: b[k] for k in (
++        'instance', 'clock', 'hostname', 'boot_id', 'time_namespace')})
++        for b in batches for s in b['samples'] if 'application' in s]
++    groups = {}
++    for b in batches:
++        for s in b['samples']:
++            key = (b['instance'], s['activation'])
++            groups.setdefault(key, []).append(s['period_ns'])
++    # IDs expose middle-of-capture DDS losses; boundaries are explicitly unobservable.
++    gaps = {}
++    for kind, rows, identity, counter in (
++        ('controller', controller, 'instance', lambda r: r['evidence_id']),
++        ('forwarder', forwards, 'forwarder_instance', lambda r: r['counts']['received'])):
++        for instance in {r[identity] for r in rows}:
++            ids = sorted(set(counter(r) for r in rows if r[identity] == instance))
++            gaps[f'{kind}:{instance}'] = sum(b - a - 1 for a, b in zip(ids, ids[1:]))
++    losses = {i: dict(dropped_period_samples=max(b['dropped_period_samples'] for b in batches if b['instance'] == i),
++                      dropped_application_records=max(b['dropped_application_records'] for b in batches if b['instance'] == i))
++              for i in {b['instance'] for b in batches}}
++    results = []
++    for target in sent:
++        stamp = target['source_stamp_ns']
++        fs = [f for f in forwards if f['source_stamp_sec'] * 10**9 + f['source_stamp_nanosec'] == stamp
++              and f.get('source_frame_id') == target['run']]
++        cs = [c for c in callbacks if c['source_stamp_ns'] == stamp
++              and c.get('source_frame_id') == target['run']]
++        apps = [a for a in applications if a['source_stamp_ns'] == stamp and any(
++            (c['instance'], c['activation'], c['sequence']) ==
++            (a['instance'], a['activation'], a['sequence'])
++            and a.get('callback_activation', a['activation']) == a['activation'] for c in cs)]
++        row = dict(source_stamp_ns=stamp, status='unmatched', sent_target=target['q'],
++                   forwarder_records=len(fs), callback_records=len(cs), application_records=len(apps))
++        if len(fs) > 1 or len(cs) > 1 or len(apps) > 1:
++            row['status'] = 'ambiguous'
++        elif apps:
++            a = apps[0]
++            row.update(status='applied', instance=a['instance'], activation=a['activation'],
++                       sequence=a['sequence'], q_desired=a['q_desired'])
++            if cs and (cs[0]['instance'], cs[0]['activation'], cs[0]['sequence'], cs[0]['t3_ns']) != (
++                    a['instance'], a['activation'], a['sequence'], a['t3_ns']):
++                row['status'] = 'ambiguous'
++            elif fs and fs[0]['publication_call_start_monotonic_ns'] is not None and same_clock(target, fs[0], a):
++                f = fs[0]
++                row['intervals_ns'] = dict(t0_t1=f['server_receipt_monotonic_ns'] - target['t0_ns'],
++                    t1_t2=f['publication_call_start_monotonic_ns'] - f['server_receipt_monotonic_ns'],
++                    t2_t3=a['t3_ns'] - f['publication_call_start_monotonic_ns'],
++                    t3_t4=a['t4_ns'] - a['t3_ns'], t0_t4=a['t4_ns'] - target['t0_ns'])
++            else:
++                row['intervals_unavailable'] = 'missing evidence or different host/boot/clock/time namespace'
++        elif (fs and fs[0]['outcome'] == 'rejected') or (cs and cs[0]['outcome'] != 'accepted'):
++            row['status'] = 'rejected'
++        elif fs and fs[0]['outcome'] == 'publication_error':
++            row['status'] = 'publication_error'
++        elif cs:
++            c = cs[0]
++            later = any(a['instance'] == c['instance'] and a['activation'] == c['activation']
++                        and a['sequence'] > c['sequence'] for a in applications)
++            complete = not gaps.get('controller:' + c['instance'], 0) and not losses.get(
++                c['instance'], {}).get('dropped_application_records', 0)
++            # Require a batch before T3 to avoid claiming supersession when an
++            # application batch at the start boundary may have been lost.
++            covered = any(b['instance'] == c['instance'] and b['evidence_id'] < c['evidence_id'] for b in batches)
++            row['status'] = 'superseded' if later and complete and covered else 'accepted_application_unresolved'
++            if row['status'] != 'superseded':
++                row['unresolved_reason'] = ('lost_evidence' if not complete else
++                                            'no_proof_of_application_or_supersession')
++        results.append(row)
++    return dict(targets=results, controller_publication_errors_cumulative={
++                i: max(r.get('publication_errors', 0) for r in controller if r['instance'] == i)
++                for i in {r['instance'] for r in controller}}, periods=[dict(instance=i, activation=a, **period_statistics(v))
++                for (i, a), v in groups.items()], evidence_id_gaps=gaps, rt_overflow_cumulative=losses,
++                capture_boundaries='Loss before first/after last evidence ID is unknown; unresolved is not proof of rejection or supersession.',
++                unmatched_forwarder_records=sum(not any(
++                    f['source_stamp_sec'] * 10**9 + f['source_stamp_nanosec'] == t['source_stamp_ns']
++                    and f.get('source_frame_id') == t['run'] for t in sent) for f in forwards),
++                unmatched_callback_records=sum(not any(c['source_stamp_ns'] == t['source_stamp_ns']
++                    and c.get('source_frame_id') == t['run'] for t in sent) for c in callbacks),
++                unmatched_application_records=sum(not any(
++                    c['source_stamp_ns'] in stamps and c.get('source_frame_id') in {t['run'] for t in sent}
++                    and (c['instance'], c['activation'], c['sequence']) ==
++                    (a['instance'], a['activation'], a['sequence']) for c in callbacks) for a in applications))
+diff --git a/fr3_lab_stack_runtime/streaming_timing_collector.py b/fr3_lab_stack_runtime/streaming_timing_collector.py
+new file mode 100644
+index 0000000..6f1a9ca
+--- /dev/null
++++ b/fr3_lab_stack_runtime/streaming_timing_collector.py
+@@ -0,0 +1,98 @@
++"""Record a short measured-q-only run; analyze raw JSONL offline as well."""
++import argparse
++import json
++import math
++import time
++import uuid
++from pathlib import Path
++
++from .timing_evidence import analyze, clock_provenance
++
++
++def main():
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument('--output', default='timing-run.jsonl')
++    parser.add_argument('--analyze', metavar='JSONL')
++    parser.add_argument('--count', type=int, default=20)
++    parser.add_argument('--interval', type=float, default=0.1)
++    args = parser.parse_args()
++    if args.analyze:
++        records = [json.loads(line) for line in Path(args.analyze).read_text().splitlines()]
++        print(json.dumps(analyze(records), indent=2))
++        return
++    if args.count <= 0 or not math.isfinite(args.interval) or args.interval < .02:
++        parser.error('count must be positive; interval must be finite and >= 0.02 seconds')
++    import rclpy
++    from rclpy.qos import qos_profile_sensor_data
++    from sensor_msgs.msg import JointState
++    from std_msgs.msg import Float64MultiArray, String
++    from .streaming_joint_target_forwarder import CONTROLLER, JOINTS, endpoint_qos
++
++    provenance = clock_provenance()
++    run = str(uuid.uuid4())
++    records = []
++    rclpy.init()
++    node = rclpy.create_node('fr3_streaming_timing_collector')
++    # Exclusive creation prevents accidentally overwriting prior measured evidence.
++    output = open(args.output, 'x', encoding='utf-8')
++
++    def save(kind, **fields):
++        record = dict(kind=kind, run=run, **fields)
++        output.write(json.dumps(record, allow_nan=False) + '\n')
++        output.flush()
++        records.append(record)
++
++    state = [None, 0]
++    def on_state(msg):
++        if len(msg.data) == 39 and msg.data[38] == 1 and all(math.isfinite(q) for q in msg.data[:7]):
++            state[:] = [list(msg.data[:7]), time.monotonic_ns()]
++
++    node.create_subscription(Float64MultiArray, f'/{CONTROLLER}/state', on_state, qos_profile_sensor_data)
++    node.create_subscription(String, '/fr3_streaming_joint_target_forwarder/telemetry',
++                             lambda m: save('forwarder', data=json.loads(m.data)), 100)
++    node.create_subscription(String, f'/{CONTROLLER}/timing',
++                             lambda m: save('controller', data=json.loads(m.data)), 100)
++    publisher = node.create_publisher(JointState, '/fr3_streaming_joint_target', endpoint_qos())
++    stamps = set()
++    def spin_for(seconds):
++        end = time.monotonic() + seconds
++        while time.monotonic() < end:
++            rclpy.spin_once(node, timeout_sec=min(.02, max(0., end - time.monotonic())))
++
++    try:
++        save('metadata', **provenance, count=args.count, interval_s=args.interval,
++             target_mode='fresh measured q from 39-field state', period_nominal_ns=1_000_000,
++             long_period_thresholds_ns=[1_500_000, 2_000_000])
++        spin_for(2.)
++        if publisher.get_subscription_count() != 1:
++            raise RuntimeError('Expected exactly one forwarder subscriber')
++        for _ in range(args.count):
++            if state[0] is None or time.monotonic_ns() - state[1] > 100_000_000:
++                raise RuntimeError('No fresh active-controller measured q within 100 ms')
++            msg = JointState()
++            msg.name = JOINTS
++            msg.position = state[0]
++            stamp = node.get_clock().now().nanoseconds
++            if stamp <= 0 or stamp in stamps:
++                raise RuntimeError('Source ROS stamp is zero or repeats within this run')
++            stamps.add(stamp)
++            msg.header.stamp.sec, msg.header.stamp.nanosec = divmod(stamp, 10**9)
++            msg.header.frame_id = run
++            outcome = 'returned'
++            t0 = time.monotonic_ns()
++            try:
++                publisher.publish(msg)
++            except Exception:
++                outcome = 'publication_error'
++                raise
++            finally:
++                end = time.monotonic_ns()
++                save('sent', **provenance, source_stamp_ns=stamp, q=list(msg.position),
++                     t0_ns=t0, publication_call_end_ns=end, publication_call_outcome=outcome)
++            spin_for(args.interval)
++        spin_for(2.)
++    finally:
++        save('summary', data=analyze(records))
++        output.close()
++        node.destroy_node()
++        rclpy.shutdown()
+diff --git a/include/fr3_lab_stack/timing_evidence.hpp b/include/fr3_lab_stack/timing_evidence.hpp
+new file mode 100644
+index 0000000..5860e99
+--- /dev/null
++++ b/include/fr3_lab_stack/timing_evidence.hpp
+@@ -0,0 +1,83 @@
++#pragma once
++
++#include <array>
++#include <atomic>
++#include <cstdint>
++#include <ctime>
++
++namespace fr3_lab_stack::timing {
++static_assert(std::atomic<std::int64_t>::is_always_lock_free);
++inline std::int64_t monotonic_ns() noexcept {
++  timespec ts{};
++  clock_gettime(CLOCK_MONOTONIC, &ts);
++  return static_cast<std::int64_t>(ts.tv_sec) * 1000000000LL + ts.tv_nsec;
++}
++
++struct TargetTiming {
++  std::int64_t callback_ns{0};
++  std::int64_t stamp_ns{0};
++  std::uint64_t sequence{0};
++  std::int64_t activation{0};
++};
++struct Sample {
++  std::uint64_t cycle{0};
++  std::int64_t activation{0};
++  std::int64_t period_ns{0};
++  bool applied{false};
++  TargetTiming target{};
++  std::int64_t application_ns{0};
++  std::array<double, 7> q_desired{};
++};
++
++// Single RT producer, single non-RT consumer. Never reset while either is running.
++// A full evidence ring drops the newest sample; it never delays command installation.
++template <std::size_t Capacity>
++class Ring {
++ public:
++  static_assert(Capacity > 0);
++  static_assert(std::atomic<std::uint64_t>::is_always_lock_free);
++  bool push(const Sample& sample) noexcept {
++    const auto write = write_.load(std::memory_order_relaxed);
++    if (write - read_.load(std::memory_order_acquire) == Capacity) {
++      dropped_.fetch_add(1, std::memory_order_relaxed);
++      if (sample.applied) dropped_applications_.fetch_add(1, std::memory_order_relaxed);
++      return false;
++    }
++    data_[write % Capacity] = sample;
++    write_.store(write + 1, std::memory_order_release);
++    return true;
++  }
++  bool pop(Sample& sample) noexcept {
++    const auto read = read_.load(std::memory_order_relaxed);
++    if (read == write_.load(std::memory_order_acquire)) return false;
++    sample = data_[read % Capacity];
++    read_.store(read + 1, std::memory_order_release);
++    return true;
++  }
++  std::uint64_t dropped() const noexcept { return dropped_.load(); }
++  std::uint64_t dropped_applications() const noexcept { return dropped_applications_.load(); }
++ private:
++  std::array<Sample, Capacity> data_{};
++  std::atomic<std::uint64_t> write_{0}, read_{0}, dropped_{0}, dropped_applications_{0};
++};
++
++// Called only after successful core.set_target(), under the controller's existing
++// new-sequence guard. Copying the command preserves callback time across buffering.
++inline void latch(Sample& sample, const TargetTiming& target,
++                  const std::array<double, 7>& q, std::int64_t t4) noexcept {
++  sample.applied = true;
++  sample.target = target;
++  sample.application_ns = t4;
++  sample.q_desired = q;
++}
++// Shared installation gate: evidence capacity cannot affect command application.
++template <typename Core, typename Command>
++bool install(Core& core, const Command& target, std::uint64_t& last_sequence,
++             Sample& sample) noexcept {
++  if (target.sequence <= last_sequence) return true;
++  if (!core.set_target(target.q)) return false;
++  latch(sample, target, target.q, monotonic_ns());
++  last_sequence = target.sequence;
++  return true;
++}
++}  // namespace fr3_lab_stack::timing
+diff --git a/scripts/fr3_streaming_timing_collector.py b/scripts/fr3_streaming_timing_collector.py
+new file mode 100755
+index 0000000..292429e
+--- /dev/null
++++ b/scripts/fr3_streaming_timing_collector.py
+@@ -0,0 +1,5 @@
++#!/usr/bin/python3
++from fr3_lab_stack_runtime.streaming_timing_collector import main
++
++if __name__ == '__main__':
++    main()
+diff --git a/test/test_timing_evidence.cpp b/test/test_timing_evidence.cpp
+new file mode 100644
+index 0000000..e4d699a
+--- /dev/null
++++ b/test/test_timing_evidence.cpp
+@@ -0,0 +1,82 @@
++#include <gtest/gtest.h>
++#include <realtime_tools/realtime_buffer.hpp>
++#include "fr3_lab_stack/timing_evidence.hpp"
++#include "fr3_lab_stack/streaming_joint_impedance_core.hpp"
++namespace {
++using namespace fr3_lab_stack;
++struct Command : timing::TargetTiming { std::array<double, 7> q{}; };
++TEST(Timing, BufferHoldSupersessionActivationOverflow) {
++  StreamingJointImpedanceCore core;
++  std::array<double, 7> gains{};
++  gains.fill(1.0);
++  ASSERT_TRUE(core.configure(gains, gains));
++  ASSERT_TRUE(core.activate({}));
++  realtime_tools::RealtimeBuffer<Command> buffer;
++  Command command;
++  command.activation = 11;
++  command.sequence = 1;
++  command.callback_ns = timing::monotonic_ns();
++  command.stamp_ns = 456;
++  command.q.fill(.2);
++  buffer.writeFromNonRT(command);
++  command.sequence = 2;
++  command.q.fill(.3);
++  buffer.writeFromNonRT(command);
++  std::uint64_t last = 0;
++  timing::Sample first;
++  ASSERT_TRUE(timing::install(core, *buffer.readFromRT(), last, first));
++  EXPECT_TRUE(first.applied);
++  EXPECT_EQ(first.target.sequence, 2u);
++  EXPECT_EQ(first.target.callback_ns, command.callback_ns);
++  EXPECT_EQ(first.target.stamp_ns, 456);
++  EXPECT_EQ(first.q_desired, command.q);
++  EXPECT_GE(first.application_ns, command.callback_ns);
++  const auto t4 = first.application_ns;
++  for (int i = 0; i < 10; ++i) {
++    timing::Sample hold;
++    ASSERT_TRUE(timing::install(core, *buffer.readFromRT(), last, hold));
++    EXPECT_FALSE(hold.applied);
++  }
++  EXPECT_EQ(first.application_ns, t4);
++  timing::Ring<1> ring;
++  ASSERT_TRUE(ring.push(first));
++  core.deactivate();
++  ASSERT_TRUE(core.activate({}));
++  last = 0;
++  command.activation = 22;
++  command.sequence = 1;
++  command.q.fill(.4);
++  buffer.writeFromNonRT(command);
++  timing::Sample second;
++  ASSERT_TRUE(timing::install(core, *buffer.readFromRT(), last, second));
++  EXPECT_FALSE(ring.push(second));
++  EXPECT_EQ(ring.dropped(), 1u);
++  EXPECT_EQ(ring.dropped_applications(), 1u);
++  StreamingJointImpedanceCore::Output output;
++  ASSERT_TRUE(core.compute({}, {}, &output));
++  EXPECT_EQ(output.desired_q, command.q);
++  EXPECT_EQ(last, 1u);
++  timing::Sample read;
++  ASSERT_TRUE(ring.pop(read));
++  EXPECT_EQ(read.target.activation, 11);
++  ASSERT_TRUE(ring.push(second));
++  ASSERT_TRUE(ring.pop(read));
++  EXPECT_EQ(read.target.activation, 22);
++  EXPECT_EQ(read.target.sequence, 1u);
++  EXPECT_FALSE(ring.pop(read));
++  for (int i = 0; i < 10; ++i) {
++    read.cycle = i;
++    ASSERT_TRUE(ring.push(read));
++    ASSERT_TRUE(ring.pop(read));
++    EXPECT_EQ(read.cycle, static_cast<unsigned>(i));
++  }
++}
++TEST(Timing, ExplicitPosixClock) {
++  timespec before{}, after{};
++  ASSERT_EQ(clock_gettime(CLOCK_MONOTONIC, &before), 0);
++  const auto value = timing::monotonic_ns();
++  ASSERT_EQ(clock_gettime(CLOCK_MONOTONIC, &after), 0);
++  EXPECT_GE(value, before.tv_sec * 1000000000LL + before.tv_nsec);
++  EXPECT_LE(value, after.tv_sec * 1000000000LL + after.tv_nsec);
++}
++}
+diff --git a/test/test_timing_evidence.py b/test/test_timing_evidence.py
+new file mode 100644
+index 0000000..220ce48
+--- /dev/null
++++ b/test/test_timing_evidence.py
+@@ -0,0 +1,95 @@
++import pytest
++from fr3_lab_stack_runtime.timing_evidence import analyze, clock_provenance, period_statistics, same_clock
++
++
++def test_clock():
++    p = clock_provenance()
++    assert p['clock_verified'] and 'CLOCK_MONOTONIC' in p['python_clock_implementation']
++    assert same_clock(p, p)
++    for key in ('clock', 'hostname', 'boot_id', 'time_namespace'):
++        assert not same_clock(p, dict(p, **{key: 'different'}))
++
++
++def test_statistics():
++    s = period_statistics([1_000_000, 1_500_000, 2_000_000, 2_500_000])
++    assert s['count'] == 4
++    assert s['mean_ns'] == s['median_ns'] == 1_750_000
++    assert s['p95_ns'] == s['p99_ns'] == s['maximum_ns'] == 2_500_000
++    assert s['long_period_counts'] == {'1500000': 2, '2000000': 1}
++    assert s['mean_deviation_ns'] == 750_000
++    assert s['maximum_absolute_deviation_ns'] == 1_500_000
++    s = period_statistics(list(range(1, 101)))
++    assert s['p95_ns'] == 95 and s['p99_ns'] == 99
++    assert period_statistics([])['mean_ns'] is None
++    assert period_statistics([1_000_000])['long_period_counts']['1500000'] == 0
++
++
++P = dict(clock='CLOCK_MONOTONIC', hostname='host', boot_id='boot', time_namespace='time')
++
++
++def fixture(activation=7, dropped=0, missing=False):
++    sent = dict(kind='sent', run='run', source_stamp_ns=123, q=[0.] * 7, t0_ns=10, **P)
++    cb = dict(event='callback', evidence_id=2, instance='i', activation=7, sequence=1,
++              t3_ns=30, source_stamp_ns=123, outcome='accepted', source_frame_id='run', **P)
++    app = dict(activation=activation, sequence=2, source_stamp_ns=124, t3_ns=40,
++               t4_ns=50, q_desired=[0.] * 7)
++    batch = dict(event='samples', evidence_id=4 if missing else 3, instance='i',
++                 activation=activation, samples=[dict(cycle=1, activation=activation,
++                 period_ns=1_000_000, application=app)], dropped_period_samples=dropped,
++                 dropped_application_records=dropped, **P)
++    pre = dict(batch, evidence_id=1, samples=[])
++    return [sent, dict(kind='controller', data=pre), dict(kind='controller', data=cb),
++            dict(kind='controller', data=batch)]
++
++
++def test_superseded_and_lost_evidence():
++    assert analyze(fixture())['targets'][0]['status'] == 'superseded'
++    for rows in (fixture(activation=8), fixture(dropped=1), fixture(missing=True)):
++        assert analyze(rows)['targets'][0]['status'] == 'accepted_application_unresolved'
++    assert analyze(fixture(missing=True))['evidence_id_gaps']['controller:i'] == 1
++    assert analyze(fixture(dropped=1))['rt_overflow_cumulative']['i']['dropped_application_records'] == 1
++
++
++def test_applied_start_timestamp_and_activation_guard():
++    rows = fixture()
++    rows[-1]['data']['samples'][0]['application'].update(source_stamp_ns=123, sequence=1, t3_ns=30)
++    f = dict(source_frame_id='run', source_stamp_sec=0, source_stamp_nanosec=123, forwarder_instance='f',
++             counts=dict(received=1), outcome='forwarded', server_receipt_monotonic_ns=20,
++             publication_call_start_monotonic_ns=25, publication_call_end_monotonic_ns=45, **P)
++    rows.append(dict(kind='forwarder', data=f))
++    r = analyze(rows)['targets'][0]
++    assert r['status'] == 'applied'
++    assert r['intervals_ns'] == dict(t0_t1=10, t1_t2=5, t2_t3=5, t3_t4=20, t0_t4=40)
++    f['hostname'] = 'remote'
++    assert 'intervals_ns' not in analyze(rows)['targets'][0]
++    rows[2]['data']['activation'] = 8
++    assert analyze(rows)['targets'][0]['status'] == 'accepted_application_unresolved'
++
++
++def test_duplicates_rejected_unmatched():
++    rows = fixture()
++    with pytest.raises(ValueError, match='unique'):
++        analyze(rows + [rows[0]])
++    rows[2]['data']['outcome'] = 'inactive'
++    assert analyze(rows)['targets'][0]['status'] == 'rejected'
++    assert analyze([rows[0]])['targets'][0]['status'] == 'unmatched'
++    assert analyze(rows)['unmatched_application_records'] == 1
++
++
++def test_run_identity_and_missing_callback_are_not_false_matches():
++    rows = fixture()
++    rows[-1]['data']['samples'][0]['application'].update(source_stamp_ns=123, sequence=1, t3_ns=30)
++    rows[2]['data']['source_frame_id'] = 'previous-run'
++    result = analyze(rows)
++    assert result['targets'][0]['status'] == 'unmatched'
++    assert result['unmatched_callback_records'] == 1
++    assert result['unmatched_application_records'] == 1
++    with pytest.raises(ValueError, match='one run'):
++        analyze(rows + [dict(rows[0], run='other', source_stamp_ns=999)])
++
++
++def test_callback_crossing_activation_is_unresolved():
++    rows = fixture()
++    rows[-1]['data']['samples'][0]['application'].update(
++        source_stamp_ns=123, sequence=1, t3_ns=30, callback_activation=6)
++    assert analyze(rows)['targets'][0]['status'] == 'accepted_application_unresolved'

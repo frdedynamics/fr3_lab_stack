@@ -67,9 +67,34 @@ A persistent hybrid impedance controller was then commissioned for absolute equi
 | Fresh-state anchoring of second target | **5.000 mrad** |
 | Desired-target mismatch after application | **0** |
 
-The 15 Hz test establishes functional target replacement, not precise end-to-end target-application latency. State telemetry is currently 100 Hz, so observed target ages of roughly 7--11 ms are too coarsely sampled for a callback-to-control-loop latency claim. Higher-resolution receipt/application and controller-period timing instrumentation is the next validation item before the prerecorded eight-action DROID sequence.
+The 15 Hz test establishes functional target replacement, not precise end-to-end target-application latency. State telemetry is currently 100 Hz, so observed target ages of roughly 7--11 ms are too coarsely sampled for a callback-to-control-loop latency claim. C1-A2 has now passed the measured-q timing characterization below. C1-B is next; moving 15 Hz execution and policy inference remain unvalidated.
 
 See [`joint_target_execution.md`](joint_target_execution.md) for the controller architecture and interpretation.
+
+## C1-A2 measured-q timing — 2026-09-15
+
+**C1-A2 passed: measured-q timing characterization.**
+
+The nominal 10 Hz characterization applied **20/20** measured-q commands with exact
+sent/applied target equality, consecutive sequences **2–21**, and exactly one
+forwarder, callback, and application record per command. No publication errors,
+evidence-ID gaps, RT-ring drops, unmatched records, or superseded/rejected targets
+were observed. End-to-end T0→T4 mean/median/p95/max were
+**0.852 / 0.842 / 1.219 / 1.449 ms**.
+
+Across **6000 consecutive controller periods**, mean was **0.9999972675 ms**, median
+**0.999384 ms**, p95 **1.081312 ms**, p99 **1.104866 ms**, and maximum **1.183844 ms**.
+There were zero long periods strictly above **1.5 ms** or **2.0 ms**.
+
+The [dated validation archive](validation/2026-09-15_c1-a2_measured-q_143031/README.md)
+contains the full verified timing table, original JSONL and analyzed JSON, exact
+commands, configuration, clock and implementation provenance, offline verification,
+and SHA-256 manifest. Tested base:
+`67a99139de545f95038625d7dbe2be68d2630bec` plus the archived C1-A2 implementation diff.
+
+**Scope:** this closes C1-A2 for zero-displacement measured-q targets at nominal
+10 Hz. **C1-B is next. Moving 15 Hz execution and policy inference remain
+unvalidated.** No physical C1-B execution occurred during finalization.
 
 ## USB topology
 

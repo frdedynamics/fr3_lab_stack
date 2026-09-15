@@ -81,7 +81,7 @@ telemetry publication. All processing durations use `time.monotonic_ns()` and
 remain independent of ROS clock jumps.
 
 There are no application command queues, target retries, mappings, scheduling,
-inference holds, interpolation, rescaling, or controller modifications.
+inference holds, interpolation, rescaling, or changes to command semantics.
 
 ## Software validation
 
@@ -108,3 +108,10 @@ Validation on 2026-09-15: package build succeeded; all six package test suites
 passed, including 27 forwarder tests. The ROS graph test uses localhost domain
 173 and a mock ListControllers service to verify unchanged message delivery and
 rejection after an inactive response. No hardware commands were sent.
+
+## C1-A2 timing extension
+
+The forwarder now records clock/host provenance, a process UUID, and source frame ID
+for run correlation. T2 remains publication-call start; end remains separate. See
+[`streaming_target_timing.md`](streaming_target_timing.md) for controller application
+evidence, raw controller periods, loss accounting, and the measured-q collector.
