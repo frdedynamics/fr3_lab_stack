@@ -1,0 +1,6 @@
+fr3_streaming_joint_target_forwarder:
+  ros__parameters:
+    target_max_age_s: 0.25
+    target_future_tolerance_s: 0.05
+    controller_poll_interval_s: 0.10
+    controller_evidence_expiry_s: 0.30

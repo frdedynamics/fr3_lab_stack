@@ -51,6 +51,8 @@ install(PROGRAMS scripts/fr3_joint_target.py DESTINATION lib/${PROJECT_NAME}
   RENAME fr3_joint_target)
 install(PROGRAMS scripts/fr3_joint_target_server.py DESTINATION lib/${PROJECT_NAME}
   RENAME fr3_joint_target_server)
+install(PROGRAMS scripts/fr3_streaming_joint_target_forwarder.py DESTINATION lib/${PROJECT_NAME}
+  RENAME fr3_streaming_joint_target_forwarder)
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
@@ -73,6 +75,9 @@ if(BUILD_TESTING)
     APPEND_ENV ROS_LOG_DIR=${CMAKE_CURRENT_BINARY_DIR}/test_logs)
   ament_add_pytest_test(joint_target test/test_joint_target.py)
   ament_add_pytest_test(joint_target_server test/test_joint_target_server.py)
+  ament_add_pytest_test(streaming_joint_target_forwarder test/test_streaming_joint_target_forwarder.py
+    APPEND_ENV ROS_DOMAIN_ID=173 ROS_LOCALHOST_ONLY=1
+      ROS_LOG_DIR=${CMAKE_CURRENT_BINARY_DIR}/test_logs)
 endif()
 
 ament_export_include_directories(include)

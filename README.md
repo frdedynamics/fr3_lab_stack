@@ -105,6 +105,11 @@ Commissioning tests accepted two fresh-state-anchored targets **66.807 ms** apar
 
 See [`docs/joint_target_execution.md`](docs/joint_target_execution.md) for the execution architecture and validation record.
 
+C1-A1 adds a persistent, validated streaming target forwarder with expiring
+active-controller evidence and per-target timing/counters. See
+[`docs/streaming_joint_target_forwarder.md`](docs/streaming_joint_target_forwarder.md)
+for startup, parameters, and telemetry semantics.
+
 ## Validation status
 
 Software build, launch, camera identity, optional depth, and RViz image-display checks have passed.
