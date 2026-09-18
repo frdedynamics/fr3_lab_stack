@@ -82,6 +82,7 @@ if(BUILD_TESTING)
 
   ament_add_pytest_test(launch_contract test/test_launch_contract.py
     APPEND_ENV ROS_LOG_DIR=${CMAKE_CURRENT_BINARY_DIR}/test_logs)
+  ament_add_pytest_test(franka_hand test/test_franka_hand.py)
   ament_add_pytest_test(joint_target test/test_joint_target.py)
   ament_add_pytest_test(joint_target_server test/test_joint_target_server.py)
   ament_add_pytest_test(streaming_joint_target_forwarder test/test_streaming_joint_target_forwarder.py
